@@ -41,10 +41,10 @@ public record SmithingRecipeDefinition(@JsonProperty(required = true) String id,
     public Recipe toBukkitRecipe(Tingere plugin) {
         return new SmithingTransformRecipe(
                 new NamespacedKey(plugin, id),
-                result.toItemStack(plugin, "result"),
-                template.toRecipeChoice(plugin, "template"),
-                ingredient.toRecipeChoice(plugin, "ingredient"),
-                addition.toRecipeChoice(plugin, "addition"));
+                result.toItemStack(plugin),
+                template.toRecipeChoice(plugin),
+                ingredient.toRecipeChoice(plugin),
+                addition.toRecipeChoice(plugin));
     }
     
     @Override

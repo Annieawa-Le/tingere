@@ -36,7 +36,7 @@ public record TransmuteRecipeDefinition(@JsonProperty(required = true) String id
                 new NamespacedKey(plugin, id),
                 result.material(),
                 new RecipeChoice.MaterialChoice(input.material()),
-                new RecipeChoice.ExactChoice(material.toItemStack(plugin, "material")));
+                new RecipeChoice.ExactChoice(material.toItemStack(plugin)));
     }
 
     @Override

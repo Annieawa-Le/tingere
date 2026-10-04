@@ -69,7 +69,7 @@ public class CraftListener implements Listener {
         if (override.amount() > 0) {
             modified.setAmount(override.amount());
         }
-        modified = ComponentApplyer.apply(plugin, modified, override.components(), "result");
+        modified = ComponentApplyer.apply(plugin, modified, override.components());
         event.getInventory().setResult(modified);
     }
 
@@ -90,8 +90,8 @@ public class CraftListener implements Listener {
         }
         finalItem.setAmount(override == null ? Ingredient.DEFAULT_AMOUNT : override.amount());
 
-        finalItem = ComponentApplyer.apply(plugin, finalItem, override == null ? null : override.components(), "result");
-        finalItem = ComponentApplyer.apply(plugin, finalItem, info.components(), "special");
+        finalItem = ComponentApplyer.apply(plugin, finalItem, override == null ? null : override.components());
+        finalItem = ComponentApplyer.apply(plugin, finalItem, info.components());
 
         // 换材质理论上与附魔无关，掉了就说明中途经过了有损的中间表示，值得立刻知道
         int enchantments = sourceInput.getEnchantments().size();
@@ -104,16 +104,6 @@ public class CraftListener implements Listener {
         event.getInventory().setResult(finalItem);
     }
 
-    /**
-     * 找出网格里那个"要被改造"的物品。
-     * <p>
-     * 位置与匹配条件都是注册时算好的（见 {@code RecipeLoader#resolveSpecialSource}），这里不能自己算：
-     * {@code PrepareItemCraftEvent#getRecipe()} 给的 Bukkit 配方是从 NMS 重建出来的，pattern 里的字符
-     * 在重建那一步就丢光了，拿 {@code getChoiceMap()} 去查原始符号永远查不到。
-     * <p>
-     * 原版的有序配方允许整体平移摆放，注册坐标未必等于玩家实际摆的位置，所以位置对不上时会退化成
-     * "在网格里找那个符合源符号的物品"。
-     */
     private ItemStack findSourceItem(ItemStack[] matrix, RecipeLoader.SpecialSource source) {
         if (source == null) {
             return null;
@@ -137,13 +127,6 @@ public class CraftListener implements Listener {
         return null;
     }
 
-    /**
-     * contain 档的复核。原版没有"组件子集"这种匹配（{@code ExactChoice} 是全等），这类材料注册时
-     * 只能先放宽成"只认材质"，于是得在这里补一道：网格里必须找得到满足条件的物品。
-     * <p>
-     * 逐条贪心配对，同一个物品不会被两条材料共用；缺任何一条就把结果清掉，
-     * 让玩家看到"摆得不对"而不是拿到一个不该出的产物。
-     */
     private boolean satisfiesContain(List<Ingredient.Matcher> matchers, ItemStack[] matrix) {
         if (matchers == null || matchers.isEmpty() || matrix == null) {
             return true;

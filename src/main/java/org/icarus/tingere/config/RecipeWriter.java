@@ -24,15 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 把编辑器里摆好的配方落盘。
- * <p>
- * 两个要点：
- * <ul>
- *   <li>落盘粒度跟着匹配模式走——只有精确匹配的材料才连组件一起写，仅材质那档只写材质，
- *       跟 {@link org.icarus.tingere.recipe.Ingredient} 的语义对齐；</li>
- *   <li>写已有文件时只动目标那一条，文件里其它配方原样保留。重新序列化会丢掉原文件里的
- *       注释（这一点是已知代价）。</li>
- * </ul>
+ * 把编辑器里摆好的配方保存到文件。
  */
 public class RecipeWriter {
 
@@ -47,7 +39,6 @@ public class RecipeWriter {
         this.plugin = plugin;
     }
 
-    /** 写入 / 覆盖会话里的配方，返回相对 recipes/ 的路径。 */
     public String save(EditorSession session, Inventory editor) throws IOException {
         String namespace = trimmed(session.getNamespace());
         if (namespace.isEmpty()) {
@@ -61,7 +52,6 @@ public class RecipeWriter {
         String file = namespace + ".yml";
         ObjectNode recipe = build(session, editor, id);
 
-        // 编辑已有配方时，换了文件或改了 id 都得先把老的那条从原文件摘掉
         if (session.isEditingExisting() && session.getSourceFile() != null) {
             boolean moved = !file.equals(session.getSourceFile());
             boolean renamed = session.getSourceRecipeId() != null
@@ -74,7 +64,6 @@ public class RecipeWriter {
         Path target = folder().resolve(file);
         parser.write(target, mergeInto(target, id, recipe));
 
-        // 补全过的 id / 命名空间写回会话，免得下次保存又生成一个
         session.setNamespace(namespace);
         session.setRecipeId(id);
         session.setSourceFile(file);
@@ -82,11 +71,6 @@ public class RecipeWriter {
         return file;
     }
 
-    /**
-     * 挑一个没被占用的 id：优先拿产物材质当基名（{@code diamond_sword}），
-     * 撞名就往后编号。id 在注册时是 {@code tingere:<id>}，跨文件也必须唯一，
-     * 所以这里比的是全部已加载配方。
-     */
     private String uniqueId(Inventory editor) {
         ItemStack result = editor == null ? null : editor.getItem(EditorSession.RESULT_SLOT);
         String base = result == null || result.getType().isAir()
@@ -105,7 +89,6 @@ public class RecipeWriter {
         }
     }
 
-    /** 删掉会话指向的配方，返回是否真的删掉了东西。 */
     public boolean delete(EditorSession session) throws IOException {
         if (!session.isEditingExisting()) {
             return false;
@@ -113,7 +96,6 @@ public class RecipeWriter {
         return removeFrom(session.getSourceFile(), session.getSourceRecipeId());
     }
 
-    // ------------------------------------------------------------------ 构造
 
     private ObjectNode build(EditorSession session, Inventory editor, String id) {
         List<ItemStack> grid = new ArrayList<>();
@@ -251,14 +233,6 @@ public class RecipeWriter {
         return node;
     }
 
-    // ------------------------------------------------------------------ 文件
-
-    /**
-     * 把这条配方并进目标文件。
-     * <p>
-     * 文件有两种合法形态：单配方（根上直接有 {@code type}）和多配方（id → 配方）。目标文件是单配方
-     * 而 id 又对不上时，就把原来那条挪到映射布局里再一起写。
-     */
     private ObjectNode mergeInto(Path file, String id, ObjectNode recipe) throws IOException {
         if (!Files.isRegularFile(file)) {
             return recipe;
@@ -285,7 +259,6 @@ public class RecipeWriter {
         return recipe;
     }
 
-    /** 从某个文件里摘掉一条配方；文件因此空了就删文件。 */
     private boolean removeFrom(String relative, String id) throws IOException {
         if (relative == null || id == null) {
             return false;

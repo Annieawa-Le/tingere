@@ -1,34 +1,38 @@
 package org.icarus.tingere.component;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.minecraft.core.component.DataComponentPatch;
+import org.bukkit.craftbukkit.inventory.CraftItemStack;
 import org.bukkit.inventory.ItemStack;
 import org.icarus.tingere.Tingere;
+import org.icarus.tingere.nms.ComponentNbt;
 import org.icarus.tingere.nms.NbtComponentSupport;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.logging.Logger;
 
 /**
- * 通用数据组件应用器，也是组件系统对外的门面。
- * <p>
- * 它为每个插件实例缓存一份 {@link ComponentRegistry}（注册表初始化需要反射扫描
- * {@code DataComponentTypes}，只做一次即可），因此可以像静态工具那样调用，
- * 而不需要在每个调用点持有 registry。
- * <p>
- * 绝大多数组件是就地写进传入的物品的，但配置里一旦出现 {@code entity-data}，
- * 返回值就会是一个新的 ItemStack——NBT 只能走 NMS 复制往返，没法就地改。
- * 所以<b>调用方一律要接住返回值</b>，别依赖副作用。
+ * 解码全部交给原版：{@link ComponentDialect}
+ * 说的有道理，既然是数据包为什么不复用呢。
  */
 public final class ComponentApplyer {
 
-    private static final Map<Tingere, ComponentApplyer> INSTANCES = new WeakHashMap<>();
+    private static final Map<Tingere, ComponentApplyer> INSTANCES = new HashMap<>();
+    private static final String CUSTOM_NAME = "custom_name";
+    private static final String PREFIX = "prefix";
+    private static final String SUFFIX = "suffix";
 
     private final Tingere plugin;
-    private final ComponentRegistry registry;
+    private final Logger logger;
 
     public ComponentApplyer(Tingere plugin) {
         this.plugin = plugin;
-        this.registry = new ComponentRegistry(plugin);
+        this.logger = plugin.getLogger();
     }
 
     public static ComponentApplyer of(Tingere plugin) {
@@ -37,24 +41,71 @@ public final class ComponentApplyer {
         }
     }
 
-    /** 便捷入口：把 {@code components} 应用到 {@code item}，返回应用后的物品（可能是新对象）。 */
-    public static ItemStack apply(Tingere plugin, ItemStack item, JsonNode components, String keyPrefix) {
-        return of(plugin).apply(item, components, keyPrefix);
+    public static ItemStack apply(Tingere plugin, ItemStack item, JsonNode components) {
+        return of(plugin).apply(item, components);
     }
 
-    public ItemStack apply(ItemStack item, JsonNode components, String keyPrefix) {
-        if (item == null || components == null || !components.isObject()) {
+    public ItemStack apply(ItemStack item, JsonNode components) {
+        if (item == null || item.getType().isAir() || components == null || !components.isObject()) {
             return item;
         }
-        registry.apply(item, components, new ComponentContext(plugin, keyPrefix));
-        return NbtComponentSupport.applyEntityData(item, entityData(components), plugin.getLogger());
+
+        ObjectNode vanilla = ComponentDialect.toVanilla(components);
+        applyAffixes(item, vanilla);
+        vanilla.remove(PREFIX);
+        vanilla.remove(SUFFIX);
+
+        net.minecraft.world.item.ItemStack handle = CraftItemStack.asNMSCopy(item);
+        if (handle == null) {
+            logger.warning("Cannot apply data components to an item that is not a CraftItemStack.");
+            return item;
+        }
+
+        if (!vanilla.isEmpty()) {
+            try {
+                DataComponentPatch patch = ComponentNbt.decodeLenient(vanilla);
+                handle.applyComponents(patch);
+            } catch (RuntimeException e) {
+                logger.warning("Failed to apply data components: " + e.getMessage());
+            }
+        }
+        NbtComponentSupport.applyEntityData(handle, entityData(components), logger);
+        return CraftItemStack.asBukkitCopy(handle);
     }
 
-    public ComponentRegistry registry() {
-        return registry;
+
+    private void applyAffixes(ItemStack item, ObjectNode vanilla) {
+        if (vanilla.has(CUSTOM_NAME)) {
+            return;
+        }
+        JsonNode prefix = vanilla.get(PREFIX);
+        JsonNode suffix = vanilla.get(SUFFIX);
+        if (prefix == null && suffix == null) {
+            return;
+        }
+
+        net.minecraft.world.item.ItemStack handle = CraftItemStack.asNMSCopy(item);
+        if (handle == null) {
+            return;
+        }
+        net.kyori.adventure.text.Component name =
+                io.papermc.paper.adventure.PaperAdventure.asAdventure(handle.getHoverName());
+        if (prefix != null) {
+            name = literal(prefix).append(name);
+        }
+        if (suffix != null) {
+            name = name.append(literal(suffix));
+        }
+        vanilla.set(CUSTOM_NAME, ComponentDialect.textNode(JsonNodeFactory.instance.textNode(
+                GsonComponentSerializer.gson().serialize(name))));
     }
 
-    /** {@code entity-data} 不在 paper-api 的组件表里：注册表放过不处理，真正写入在 NMS 通道。 */
+    private static net.kyori.adventure.text.Component literal(JsonNode node) {
+        return MiniMessage.miniMessage()
+                .deserialize(node == null || node.isNull() ? "" : node.asText());
+    }
+
+
     private static JsonNode entityData(JsonNode components) {
         JsonNode value = components.get("entity_data");
         return value == null ? components.get("entity-data") : value;

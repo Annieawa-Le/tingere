@@ -81,8 +81,8 @@ public record CookingRecipeDefinition(@JsonProperty(required = true) String id,
     @Override
     public Recipe toBukkitRecipe(Tingere plugin) {
         NamespacedKey key = new NamespacedKey(plugin, id);
-        ItemStack resultStack = result.toItemStack(plugin, "result");
-        RecipeChoice input = ingredient.toRecipeChoice(plugin, "ingredient");
+        ItemStack resultStack = result.toItemStack(plugin);
+        RecipeChoice input = ingredient.toRecipeChoice(plugin);
         float exp = (float) experienceOrDefault();
         int ticks = cookingTicks();
 

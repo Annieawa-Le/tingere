@@ -56,11 +56,11 @@ public record ShapedRecipeDefinition(@JsonProperty(required = true) String id,
     @Override
     public Recipe toBukkitRecipe(Tingere plugin) {
         ShapedRecipe recipe = new ShapedRecipe(
-                new NamespacedKey(plugin, id), result.toItemStack(plugin, "result"));
+                new NamespacedKey(plugin, id), result.toItemStack(plugin));
         recipe.shape(pattern.toArray(String[]::new));
 
         ingredients.forEach((symbol, ingredient) ->
-                recipe.setIngredient(symbol, ingredient.toRecipeChoice(plugin, "ingredient_" + symbol)));
+                recipe.setIngredient(symbol, ingredient.toRecipeChoice(plugin)));
         return recipe;
     }
 

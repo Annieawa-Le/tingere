@@ -27,17 +27,12 @@ import java.util.function.Consumer;
 
 /**
  * 编辑器用到的原版对话框
- * <p>
- * 两件要记住的事：弹窗会把箱子界面顶掉，但玩家同时也可能是在往组件屏跳，所以"是不是真走了"
- * 交给 {@code EditorGuiListener#onClose} 延迟一个 tick 去判断；另外关闭对话框不会自动回到编辑器，
- * 每个按钮（含返回）都自带去向。
  */
 public final class EditorDialogs {
 
     private EditorDialogs() {
     }
 
-    /** 配方信息：id / 类型 / 命名空间 / 是否特殊配方。 */
     public static void openRecipeMeta(Player player, EditorSession session) {
         List<DialogInput> inputs = List.of(
                 DialogInput.text("recipe_id", Component.text("配方 id"))
@@ -69,7 +64,6 @@ public final class EditorDialogs {
         });
     }
 
-    /** 材料设置：匹配模式 / 是否作为特殊配方的源材料，另带一个进组件屏的按钮。 */
     public static void openIngredient(Player player, EditorSession session, int gridIndex) {
         EditorSession.IngredientMeta meta = session.metaOf(gridIndex);
 
@@ -97,7 +91,6 @@ public final class EditorDialogs {
         show(player, session, "材料设置（第 " + (gridIndex + 1) + " 格）", inputs, apply);
     }
 
-    /** 产物设置：数量 / 特殊产物材质 / 是否复制输入数据，另带一个进组件屏的按钮。 */
     public static void openResult(Player player, EditorSession session) {
         Inventory inventory = session.getInventory();
         ItemStack current = inventory == null ? null : inventory.getItem(EditorSession.RESULT_SLOT);

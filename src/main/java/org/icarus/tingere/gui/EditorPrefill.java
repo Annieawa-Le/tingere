@@ -45,7 +45,7 @@ public final class EditorPrefill {
 
         Inventory inventory = session.getInventory();
         inventory.setItem(EditorSession.RESULT_SLOT,
-                definition.result().toItemStack(plugin, "prefill_result"));
+                definition.result().toItemStack(plugin));
 
         SpecialDefinition special = definition.special();
         session.setRecipeId(recipeId);
@@ -87,7 +87,7 @@ public final class EditorPrefill {
 
     private static void place(Tingere plugin, EditorSession session, int gridIndex, Ingredient ingredient,
                               Character symbol, SpecialDefinition special) {
-        ItemStack item = ingredient.toItemStack(plugin, "prefill_" + gridIndex);
+        ItemStack item = ingredient.toItemStack(plugin);
         session.getInventory().setItem(EditorSession.GRID_SLOTS[gridIndex], item);
 
         EditorSession.IngredientMeta meta = session.metaOf(gridIndex);
