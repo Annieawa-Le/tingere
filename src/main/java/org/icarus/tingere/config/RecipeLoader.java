@@ -3,12 +3,14 @@ package org.icarus.tingere.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.RecipeChoice;
 import org.icarus.tingere.Tingere;
 import org.icarus.tingere.nms.RecipeTransaction;
 import org.icarus.tingere.parser.RecipeParser;
 import org.icarus.tingere.recipe.Ingredient;
 import org.icarus.tingere.recipe.RecipeDefinition;
 import org.icarus.tingere.recipe.ResultOverride;
+import org.icarus.tingere.recipe.ShapedRecipeDefinition;
 import org.icarus.tingere.recipe.SpecialDefinition;
 import org.icarus.tingere.recipe.TransmuteRecipeDefinition;
 
@@ -41,8 +43,11 @@ public class RecipeLoader {
 
     private final Map<String, ItemStack> recipeResults = new HashMap<>();
     private final Map<String, List<ItemStack>> recipeIngredients = new HashMap<>();
+    /** 注册时编译好的匹配条件（只留有组件要求的那些），键与 registeredKeys 一致。 */
+    private final Map<String, List<Ingredient.Matcher>> ingredientMatchers = new HashMap<>();
     private final Map<String, SpecialDefinition> specialRecipes = new HashMap<>();
     private final Map<String, ResultOverride> resultOverrides = new HashMap<>();
+    private final Map<String, SpecialSource> specialSources = new HashMap<>();
     private final Set<NamespacedKey> registeredKeys = new HashSet<>();
 
     private final Map<String, Set<String>> fileRecipeIds = new HashMap<>();
@@ -54,6 +59,10 @@ public class RecipeLoader {
         this.logger = plugin.getLogger();
     }
 
+    /** special 配方里"要被改造的那个物品"：注册时解出的槽位与匹配条件。 */
+    public record SpecialSource(int slot, RecipeChoice choice) {
+    }
+
     public record ReloadReport(String relative, int removed, int loaded) {
     }
 
@@ -61,6 +70,10 @@ public class RecipeLoader {
     }
 
     private record ChangedFile(String relative, Path path, String fingerprint) {
+    }
+
+    public SpecialSource getSpecialSource(String fullKey) {
+        return specialSources.get(fullKey);
     }
 
     public SpecialDefinition getSpecialRecipeInfo(String fullKey) {
@@ -75,6 +88,14 @@ public class RecipeLoader {
         return recipeIngredients.get(key);
     }
 
+    /**
+     * 某条配方压平后的材料。contain 档的原版注册只能放宽成"只认材质"，
+     * 得靠这份原件在准备结果时补判断（见 {@code CraftListener}）。
+     */
+    public List<Ingredient.Matcher> getIngredientMatchers(String fullKey) {
+        return ingredientMatchers.get(fullKey);
+    }
+
     public Set<NamespacedKey> getRegisteredKeys() {
         return Collections.unmodifiableSet(registeredKeys);
     }
@@ -85,6 +106,16 @@ public class RecipeLoader {
 
     public ItemStack getResultItem(String key) {
         return recipeResults.get(key);
+    }
+
+    /** 某个配方 id 来自哪个文件（相对 recipes/）；当前没加载的返回 null。 */
+    public String fileOf(String recipeId) {
+        for (Map.Entry<String, Set<String>> entry : fileRecipeIds.entrySet()) {
+            if (entry.getValue().contains(recipeId)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     public List<String> listRecipeFiles() {
@@ -226,7 +257,9 @@ public class RecipeLoader {
             registeredKeys.remove(key);
             recipeResults.remove(id);
             recipeIngredients.remove(id);
+            ingredientMatchers.remove(key.toString());
             specialRecipes.remove(key.toString());
+            specialSources.remove(key.toString());
             resultOverrides.remove(key.toString());
         }
         return removed;
@@ -324,6 +357,16 @@ public class RecipeLoader {
         }
         recipeIngredients.put(id, ingredients);
 
+        // 只留对组件有要求的材料：其余的在原版那一层就匹配准了，复核时不必过问
+        List<Ingredient.Matcher> matchers = new ArrayList<>(flattened.size());
+        for (Ingredient ingredient : flattened) {
+            Ingredient.Matcher matcher = ingredient.matcher(plugin);
+            if (matcher.hasRequirements()) {
+                matchers.add(matcher);
+            }
+        }
+        ingredientMatchers.put(namespacedKey.toString(), matchers);
+
         SpecialDefinition special = definition.special();
         int amount = definition.result().amountOrDefault();
         boolean needsOverriding = definition.resultComponents() != null || amount != Ingredient.DEFAULT_AMOUNT;
@@ -333,10 +376,43 @@ public class RecipeLoader {
 
         if (special != null) {
             specialRecipes.put(namespacedKey.toString(), special);
+            SpecialSource source = resolveSpecialSource(definition, special, namespacedKey.toString());
+            if (source != null) {
+                specialSources.put(namespacedKey.toString(), source);
+            }
             logger.info("Stored special recipe: " + namespacedKey + " -> " + special.targetMaterial() + " x" + amount
                     + (special.sourceCharacter() != null ? ", sourceChar=" + special.sourceCharacter() : "")
                     + (special.sourceSlot() != null ? ", sourceSlot=" + special.sourceSlot() : ""));
         }
+    }
+
+    private SpecialSource resolveSpecialSource(RecipeDefinition definition, SpecialDefinition special, String key) {
+        if (special.sourceSlot() != null) {
+            return new SpecialSource(special.sourceSlot(), null);
+        }
+        Character symbol = special.sourceCharacterOrNull();
+        if (symbol == null || !(definition instanceof ShapedRecipeDefinition shaped)) {
+            return null;
+        }
+        Ingredient source = shaped.ingredients().get(symbol);
+        if (source == null) {
+            logger.warning("special.source-character '" + symbol + "' is not defined in ingredients of " + key);
+            return null;
+        }
+        return new SpecialSource(slotOf(shaped.pattern(), symbol), source.toRecipeChoice(plugin, "special_source"));
+    }
+
+    /** pattern 里某个符号所在的槽位（行优先）；找不到返回 -1。 */
+    private static int slotOf(List<String> pattern, char symbol) {
+        for (int row = 0; row < Math.min(pattern.size(), 3); row++) {
+            String line = pattern.get(row);
+            for (int col = 0; col < Math.min(line.length(), 3); col++) {
+                if (line.charAt(col) == symbol) {
+                    return row * 3 + col;
+                }
+            }
+        }
+        return -1;
     }
 
     private static String describeException(Exception e) {

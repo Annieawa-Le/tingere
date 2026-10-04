@@ -17,6 +17,7 @@ import org.icarus.tingere.recipe.TransmuteRecipeDefinition;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -39,6 +40,13 @@ public final class RecipeParser {
         try (InputStream input = Files.newInputStream(file)) {
             JsonNode root = mapper.readTree(input);
             return root == null ? mapper.getNodeFactory().missingNode() : root;
+        }
+    }
+
+    public void write(Path file, JsonNode root) throws IOException {
+        Files.createDirectories(file.getParent());
+        try (OutputStream output = Files.newOutputStream(file)) {
+            mapper.writeValue(output, root);
         }
     }
 

@@ -4,6 +4,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.context.CommandContext;
@@ -24,6 +25,9 @@ import org.incendo.cloud.permission.PredicatePermission;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.icarus.tingere.Tingere;
 import org.icarus.tingere.config.RecipeLoader;
+import org.icarus.tingere.gui.EditorPrefill;
+import org.icarus.tingere.gui.EditorSession;
+import org.icarus.tingere.gui.RecipeEditorView;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -71,6 +75,7 @@ public final class TingereCommandManager {
         registerRootCommand();
         registerReloadCommand();
         registerGetCommands();
+        registerGuiCommand();
     }
 
     private void registerRootCommand() {
@@ -137,6 +142,45 @@ public final class TingereCommandManager {
 
     private static String quoteIfNeeded(String path) {
         return SAFE_FILE_ARG.matcher(path).matches() ? path : '"' + path + '"';
+    }
+
+    private void registerGuiCommand() {
+        commandManager.command(root()
+                .literal("gui", Description.of("打开配方编辑器；给了 id 就编辑那条已有配方"))
+                .optional("target", StringParser.greedyStringParser(), recipeKeySuggestions())
+                .permission(adminPermission())
+                .handler(context -> {
+                    CommandSender sender = sender(context);
+                    if (sender instanceof Player player) {
+                        openEditor(player, context.getOrDefault("target", null));
+                    } else {
+                        sender.sendRichMessage("<red>该命令只能由玩家执行");
+                    }
+                }));
+    }
+
+    private void openEditor(Player player, String target) {
+        EditorSession session = new EditorSession(player.getUniqueId());
+        Inventory inventory = RecipeEditorView.create(session);
+
+        if (target != null && !target.isBlank()) {
+            String id = target.trim();
+            String file = plugin.getRecipeLoader().fileOf(id);
+            if (file == null) {
+                player.sendRichMessage("<red>没找到配方 '" + id + "'，可以用 /tingere list 看看有哪些");
+                return;
+            }
+            try {
+                EditorPrefill.fill(plugin, session, file, id);
+            } catch (IOException | RuntimeException e) {
+                player.sendRichMessage("<red>读取配方失败：" + e.getMessage());
+                return;
+            }
+            // 会话里的值刚被填过，重画一遍信息格
+            RecipeEditorView.render(session, inventory);
+        }
+
+        player.openInventory(inventory);
     }
 
     private void registerGetCommands() {

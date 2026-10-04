@@ -5,12 +5,12 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.icarus.tingere.command.TingereCommandManager;
 import org.icarus.tingere.config.RecipeLoader;
 import org.icarus.tingere.listener.CraftListener;
+import org.icarus.tingere.listener.EditorGuiListener;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class Tingere extends JavaPlugin {
-
     @Getter private final RecipeLoader recipeLoader = new RecipeLoader(this);
     private final Logger logger = this.getLogger();
 
@@ -20,6 +20,7 @@ public final class Tingere extends JavaPlugin {
         logger.info("Made by Ph0sphorW & Annieawa");
         new TingereCommandManager(this).register();
         getServer().getPluginManager().registerEvents(new CraftListener(this), this);
+        getServer().getPluginManager().registerEvents(new EditorGuiListener(this), this);
         reloadRecipes();
     }
 

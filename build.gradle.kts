@@ -4,7 +4,7 @@ plugins {
     java
     id("com.gradleup.shadow") version "9.2.2"
     id("xyz.jpenilla.run-paper") version "3.0.2"
-    id("io.papermc.paperweight.userdev") version "2.0.0-SNAPSHOT"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.21"
 }
 
 group = "org.icarus"
