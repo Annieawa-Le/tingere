@@ -27,11 +27,9 @@ public final class ComponentApplyer {
     private static final String PREFIX = "prefix";
     private static final String SUFFIX = "suffix";
 
-    private final Tingere plugin;
     private final Logger logger;
 
     public ComponentApplyer(Tingere plugin) {
-        this.plugin = plugin;
         this.logger = plugin.getLogger();
     }
 

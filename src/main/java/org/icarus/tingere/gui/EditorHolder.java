@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.jetbrains.annotations.NotNull;
 
 /** 把编辑会话挂到界面上，事件里靠 {@code getHolder()} 认出来。 */
 @RequiredArgsConstructor
@@ -19,7 +20,7 @@ public class EditorHolder implements InventoryHolder {
     }
 
     @Override
-    public Inventory getInventory() {
+    public @NotNull Inventory getInventory() {
         return inventory;
     }
 }

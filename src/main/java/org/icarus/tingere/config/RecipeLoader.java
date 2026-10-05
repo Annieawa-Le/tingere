@@ -43,7 +43,6 @@ public class RecipeLoader {
 
     private final Map<String, ItemStack> recipeResults = new HashMap<>();
     private final Map<String, List<ItemStack>> recipeIngredients = new HashMap<>();
-    /** 娉ㄥ唽鏃剁紪璇戝ソ鐨勫尮閰嶆潯浠讹紙鍙暀鏈夌粍浠惰姹傜殑閭ｄ簺锛夛紝閿笌 registeredKeys 涓€鑷淬€?*/
     private final Map<String, List<Ingredient.Matcher>> ingredientMatchers = new HashMap<>();
     private final Map<String, SpecialDefinition> specialRecipes = new HashMap<>();
     private final Map<String, ResultOverride> resultOverrides = new HashMap<>();
@@ -59,7 +58,6 @@ public class RecipeLoader {
         this.logger = plugin.getLogger();
     }
 
-    /** special 閰嶆柟閲?瑕佽鏀归€犵殑閭ｄ釜鐗╁搧"锛氭敞鍐屾椂瑙ｅ嚭鐨勬Ы浣嶄笌鍖归厤鏉′欢銆?*/
     public record SpecialSource(int slot, RecipeChoice choice) {
     }
 
@@ -88,8 +86,6 @@ public class RecipeLoader {
         return recipeIngredients.get(key);
     }
 
-    /**
-     * 鏌愭潯閰嶆柟鍘嬪钩鍚庣殑鏉愭枡銆俢ontain 妗ｇ殑鍘熺増娉ㄥ唽鍙兘鏀惧鎴?鍙鏉愯川"锛?     * 寰楅潬杩欎唤鍘熶欢鍦ㄥ噯澶囩粨鏋滄椂琛ュ垽鏂紙瑙?{@code CraftListener}锛夈€?     */
     public List<Ingredient.Matcher> getIngredientMatchers(String fullKey) {
         return ingredientMatchers.get(fullKey);
     }
@@ -106,7 +102,6 @@ public class RecipeLoader {
         return recipeResults.get(key);
     }
 
-    /** 鏌愪釜閰嶆柟 id 鏉ヨ嚜鍝釜鏂囦欢锛堢浉瀵?recipes/锛夛紱褰撳墠娌″姞杞界殑杩斿洖 null銆?*/
     public String fileOf(String recipeId) {
         for (Map.Entry<String, Set<String>> entry : fileRecipeIds.entrySet()) {
             if (entry.getValue().contains(recipeId)) {
@@ -350,12 +345,11 @@ public class RecipeLoader {
 
         List<Ingredient> flattened = definition.flattenedIngredients();
         List<ItemStack> ingredients = new ArrayList<>(flattened.size());
-        for (int i = 0; i < flattened.size(); i++) {
-            ingredients.add(flattened.get(i).toItemStack(plugin));
+        for (Ingredient value : flattened) {
+            ingredients.add(value.toItemStack(plugin));
         }
         recipeIngredients.put(id, ingredients);
 
-        // 鍙暀瀵圭粍浠舵湁瑕佹眰鐨勬潗鏂欙細鍏朵綑鐨勫湪鍘熺増閭ｄ竴灞傚氨鍖归厤鍑嗕簡锛屽鏍告椂涓嶅繀杩囬棶
         List<Ingredient.Matcher> matchers = new ArrayList<>(flattened.size());
         for (Ingredient ingredient : flattened) {
             Ingredient.Matcher matcher = ingredient.matcher(plugin);
@@ -400,7 +394,6 @@ public class RecipeLoader {
         return new SpecialSource(slotOf(shaped.pattern(), symbol), source.toRecipeChoice(plugin));
     }
 
-    /** pattern 閲屾煇涓鍙锋墍鍦ㄧ殑妲戒綅锛堣浼樺厛锛夛紱鎵句笉鍒拌繑鍥?-1銆?*/
     private static int slotOf(List<String> pattern, char symbol) {
         for (int row = 0; row < Math.min(pattern.size(), 3); row++) {
             String line = pattern.get(row);

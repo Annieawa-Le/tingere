@@ -21,6 +21,7 @@ public record Ingredient(@JsonProperty(required = true) Material material,
     public static final int DEFAULT_AMOUNT = 1;
     public static final String MODE_MATERIAL = "material";
     public static final String MODE_CONTAIN = "contain";
+    public static final String MODE_EXACT = "exact";
 
     public Ingredient {
         if (material == null) {

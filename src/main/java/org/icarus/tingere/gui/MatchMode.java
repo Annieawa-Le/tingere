@@ -7,21 +7,14 @@ public enum MatchMode {
 
     // 具体取值由 Ingredient 定义，这里引用过去，免得两边各写一份字符串跑偏
 
-    /** 缺省档：材质对上、且物品带着配方里写的组件（允许多余的），不需要写 match-mode。 */
-    CONTAIN("包含", null),
-    EXACT("精确", "exact"),
+    CONTAIN("包含", Ingredient.MODE_CONTAIN),
+    EXACT("精确", Ingredient.MODE_EXACT),
     MATERIAL("仅材质", Ingredient.MODE_MATERIAL);
 
-    private final String display;
     private final String yamlValue;
 
     MatchMode(String display, String yamlValue) {
-        this.display = display;
         this.yamlValue = yamlValue;
-    }
-
-    public String display() {
-        return display;
     }
 
     public String yamlValue() {

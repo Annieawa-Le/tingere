@@ -30,8 +30,8 @@ public record ShapelessRecipeDefinition(@JsonProperty(required = true) String id
         ShapelessRecipe recipe = new ShapelessRecipe(
                 new NamespacedKey(plugin, id), result.toItemStack(plugin));
 
-        for (int i = 0; i < ingredients.size(); i++) {
-            recipe.addIngredient(ingredients.get(i).toRecipeChoice(plugin));
+        for (Ingredient ingredient : ingredients) {
+            recipe.addIngredient(ingredient.toRecipeChoice(plugin));
         }
         return recipe;
     }

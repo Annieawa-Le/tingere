@@ -1,5 +1,6 @@
 package org.icarus.tingere.gui;
 
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -52,7 +53,7 @@ public final class RecipeEditorView {
     private static ItemStack filler() {
         ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(plain(" "));
+        meta.displayName(Component.text(" "));
         item.setItemMeta(meta);
         return item;
     }
@@ -110,9 +111,6 @@ public final class RecipeEditorView {
         return item;
     }
 
-    private static Component plain(String content) {
-        return Component.text(content).decoration(TextDecoration.ITALIC, false);
-    }
 
     private static Component line(String label, String value) {
         return Component.text(label + "：", NamedTextColor.GRAY)
