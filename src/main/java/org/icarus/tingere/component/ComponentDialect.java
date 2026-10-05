@@ -47,52 +47,11 @@ public class ComponentDialect {
             Map.entry("stew_effects", "suspicious_stew_effects"),
             Map.entry("recipe_unlock", "recipes"),
             Map.entry("written_book", "written_book_content"),
-            Map.entry("writable_book", "writable_book_content"),
-            Map.entry("equippable_on_head", "equippable"),
-            // 这些组件的注册表 key 里带斜杠，配置里按字段名写法补一道
-            Map.entry("villager_variant", "villager/variant"),
-            Map.entry("wolf_variant", "wolf/variant"),
-            Map.entry("wolf_sound_variant", "wolf/sound_variant"),
-            Map.entry("cat_variant", "cat/variant"),
-            Map.entry("cat_sound_variant", "cat/sound_variant"),
-            Map.entry("chicken_variant", "chicken/variant"),
-            Map.entry("chicken_sound_variant", "chicken/sound_variant"),
-            Map.entry("cow_variant", "cow/variant"),
-            Map.entry("cow_sound_variant", "cow/sound_variant"),
-            Map.entry("pig_variant", "pig/variant"),
-            Map.entry("pig_sound_variant", "pig/sound_variant"),
-            Map.entry("frog_variant", "frog/variant"),
-            Map.entry("axolotl_variant", "axolotl/variant"),
-            Map.entry("rabbit_variant", "rabbit/variant"),
-            Map.entry("horse_variant", "horse/variant"),
-            Map.entry("llama_variant", "llama/variant"),
-            Map.entry("fox_variant", "fox/variant"),
-            Map.entry("salmon_size", "salmon/size"),
-            Map.entry("painting_variant", "painting/variant"),
-            Map.entry("mooshroom_variant", "mooshroom/variant"),
-            Map.entry("sheep_color", "sheep/color"),
-            Map.entry("shulker_color", "shulker/color"),
-            Map.entry("tropical_fish_base_color", "tropical_fish/base_color"),
-            Map.entry("tropical_fish_pattern", "tropical_fish/pattern"),
-            Map.entry("tropical_fish_pattern_color", "tropical_fish/pattern_color"),
-            Map.entry("parrot_variant", "parrot/variant"),
-            Map.entry("zombie_nautilus_variant", "zombie_nautilus/variant"),
-            Map.entry("wolf_collar", "wolf/collar"),
-            Map.entry("cat_collar", "cat/collar"));
+            Map.entry("writable_book", "writable_book_content")
+    );
 
     private static final Set<String> TEXT_KEYS = Set.of(
             "custom_name", "item_name", "lore");
-
-
-    private static final Map<String, java.util.function.UnaryOperator<JsonNode>> SWEETENERS = Map.of(
-            "tooltip_display", value -> {
-                if (!value.isBoolean()) {
-                    return value;
-                }
-                // 组件里存的是"要隐藏什么"，配置里写 true 想表达的正好是"不隐藏"……？
-                return JsonNodeFactory.instance.objectNode().put("hide_tooltip", !value.asBoolean());
-            });
-
 
     private static final Set<String> EXTERNAL_KEYS = Set.of("entity_data");
 
@@ -115,8 +74,6 @@ public class ComponentDialect {
             JsonNode value = entry.getValue();
             if (TEXT_KEYS.contains(key)) {
                 value = textNode(value);
-            } else if (SWEETENERS.containsKey(key)) {
-                value = SWEETENERS.get(key).apply(value);
             }
             result.set(key, value);
         }

@@ -14,8 +14,10 @@ import net.minecraft.core.component.DataComponentExactPredicate;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.resources.RegistryOps;
+import org.icarus.tingere.Tingere;
 import org.icarus.tingere.component.ComponentDialect;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -31,7 +33,7 @@ public final class ComponentNbt {
     private ComponentNbt() {
     }
 
-    public static DataComponentPatch decode(ObjectNode components, String label) {
+    public static DataComponentPatch decode(ObjectNode components, String label) throws IllegalArgumentException{
         var result = DataComponentPatch.CODEC.parse(jsonOps(), gson(components));
         return result.result().orElseThrow(() -> new IllegalArgumentException(
                 "invalid data component '" + label + "': " + result.error().orElseThrow().message()));
@@ -64,14 +66,20 @@ public final class ComponentNbt {
     /**
      * 把 JSON 里的组件节点逐条解析。
      */
-    public static DataComponentPatch decodeLenient(ObjectNode components) {
+    public static DataComponentPatch decodeLenient(ObjectNode components) throws IllegalArgumentException{
         DataComponentPatch.Builder builder = DataComponentPatch.builder();
+        ArrayList<String> errors = new ArrayList<>();
         for (Iterator<Map.Entry<String, JsonNode>> fields = components.fields(); fields.hasNext(); ) {
             Map.Entry<String, JsonNode> entry = fields.next();
             ObjectNode single = JsonNodeFactory.instance.objectNode();
             single.set(entry.getKey(), entry.getValue());
-            decode(single, entry.getKey()).entrySet().forEach(e -> copyEntry(builder, e));
+            try {
+                decode(single, entry.getKey()).entrySet().forEach(e -> copyEntry(builder, e));
+            }catch (IllegalArgumentException e){
+                errors.add(e.getMessage());
+            }
         }
+        if(!errors.isEmpty()) throw new IllegalArgumentException(String.join("\n",errors));
         return builder.build();
     }
 
