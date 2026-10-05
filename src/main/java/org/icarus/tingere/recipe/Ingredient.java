@@ -5,9 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import net.minecraft.core.component.DataComponentExactPredicate;
 import org.bukkit.Material;
 import org.bukkit.craftbukkit.inventory.CraftItemStack;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
 import org.icarus.tingere.Tingere;
-import org.icarus.tingere.component.ComponentApplyer;
+import org.icarus.tingere.component.ComponentApplier;
 import org.icarus.tingere.component.ComponentDialect;
 import org.icarus.tingere.nms.ComponentNbt;
 
@@ -62,8 +63,8 @@ public record Ingredient(@JsonProperty(required = true) Material material,
         }
     }
 
-    public org.bukkit.inventory.ItemStack toItemStack(Tingere plugin) {
-        return ComponentApplyer.apply(plugin, new org.bukkit.inventory.ItemStack(material, amountOrDefault()), components);
+    public ItemStack toItemStack(Tingere plugin) {
+        return ComponentApplier.apply(plugin, new ItemStack(material, amountOrDefault()), components);
     }
 
     /**
@@ -88,7 +89,7 @@ public record Ingredient(@JsonProperty(required = true) Material material,
             return required != null && !required.isEmpty();
         }
 
-        public boolean accepts(org.bukkit.inventory.ItemStack item) {
+        public boolean accepts(ItemStack item) {
             if (item == null || item.getType().isAir() || item.getType() != material) {
                 return false;
             }

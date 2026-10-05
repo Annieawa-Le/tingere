@@ -24,7 +24,7 @@ public class ComponentDialect {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     // 这里是键的别名。。
-    private static final Map<String, String> EXPLICIT_ALIASES = Map.ofEntries(
+    private static final Map<String, String> EXPLICIT_ALIASES = Map.<String, String>ofEntries(
             Map.entry("display_name", "custom_name"),
             Map.entry("name", "custom_name"),
             Map.entry("maxdamage", "max_damage"),
@@ -89,7 +89,7 @@ public class ComponentDialect {
                 if (!value.isBoolean()) {
                     return value;
                 }
-                // 组件里存的是"要隐藏什么"，配置里写 true 想表达的正好是"不隐藏"
+                // 组件里存的是"要隐藏什么"，配置里写 true 想表达的正好是"不隐藏"……？
                 return JsonNodeFactory.instance.objectNode().put("hide_tooltip", !value.asBoolean());
             });
 

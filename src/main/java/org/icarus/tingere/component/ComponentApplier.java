@@ -3,6 +3,7 @@ package org.icarus.tingere.component;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.minecraft.core.component.DataComponentPatch;
@@ -20,22 +21,22 @@ import java.util.logging.Logger;
  * 解码全部交给原版：{@link ComponentDialect}
  * 说的有道理，既然是数据包为什么不复用呢。
  */
-public final class ComponentApplyer {
+public final class ComponentApplier {
 
-    private static final Map<Tingere, ComponentApplyer> INSTANCES = new HashMap<>();
+    private static final Map<Tingere, ComponentApplier> INSTANCES = new HashMap<>();
     private static final String CUSTOM_NAME = "custom_name";
     private static final String PREFIX = "prefix";
     private static final String SUFFIX = "suffix";
 
     private final Logger logger;
 
-    public ComponentApplyer(Tingere plugin) {
+    public ComponentApplier(Tingere plugin) {
         this.logger = plugin.getLogger();
     }
 
-    public static ComponentApplyer of(Tingere plugin) {
+    public static ComponentApplier of(Tingere plugin) {
         synchronized (INSTANCES) {
-            return INSTANCES.computeIfAbsent(plugin, ComponentApplyer::new);
+            return INSTANCES.computeIfAbsent(plugin, ComponentApplier::new);
         }
     }
 
@@ -86,7 +87,7 @@ public final class ComponentApplyer {
         if (handle == null) {
             return;
         }
-        net.kyori.adventure.text.Component name =
+        Component name =
                 io.papermc.paper.adventure.PaperAdventure.asAdventure(handle.getHoverName());
         if (prefix != null) {
             name = literal(prefix).append(name);
@@ -98,7 +99,7 @@ public final class ComponentApplyer {
                 GsonComponentSerializer.gson().serialize(name))));
     }
 
-    private static net.kyori.adventure.text.Component literal(JsonNode node) {
+    private static Component literal(JsonNode node) {
         return MiniMessage.miniMessage()
                 .deserialize(node == null || node.isNull() ? "" : node.asText());
     }
