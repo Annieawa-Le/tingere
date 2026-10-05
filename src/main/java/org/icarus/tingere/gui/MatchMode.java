@@ -2,18 +2,15 @@ package org.icarus.tingere.gui;
 
 import org.icarus.tingere.recipe.Ingredient;
 
-/** 材料匹配模式，对应 {@code Ingredient} 的 match-mode 字段。 */
 public enum MatchMode {
 
-    // 具体取值由 Ingredient 定义，这里引用过去，免得两边各写一份字符串跑偏
-
-    CONTAIN("包含", Ingredient.MODE_CONTAIN),
-    EXACT("精确", Ingredient.MODE_EXACT),
-    MATERIAL("仅材质", Ingredient.MODE_MATERIAL);
+    CONTAIN(Ingredient.MODE_CONTAIN),
+    EXACT(Ingredient.MODE_EXACT),
+    MATERIAL(Ingredient.MODE_MATERIAL);
 
     private final String yamlValue;
 
-    MatchMode(String display, String yamlValue) {
+    MatchMode(String yamlValue) {
         this.yamlValue = yamlValue;
     }
 

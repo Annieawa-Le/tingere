@@ -33,6 +33,15 @@ public class CraftListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPrepareCraft(PrepareItemCraftEvent event) {
+        try {
+            applyRecipe(event);
+        } catch (RuntimeException e) {
+            plugin.getLogger().warning("Failed to build the craft result: " + e.getMessage());
+            event.getInventory().setResult(null);
+        }
+    }
+
+    private void applyRecipe(PrepareItemCraftEvent event) {
         Recipe recipe = event.getRecipe();
         if (!(recipe instanceof Keyed keyed)) {
             return;
@@ -41,7 +50,6 @@ public class CraftListener implements Listener {
         RecipeLoader loader = plugin.getRecipeLoader();
         String fullKey = keyed.getKey().toString();
 
-        // contain 档的原版注册件只能放宽到"只认材质"，组件的部分在这里补判
         if (!satisfiesContain(loader.getIngredientMatchers(fullKey), event.getInventory().getMatrix())) {
             event.getInventory().setResult(null);
             return;
@@ -93,7 +101,6 @@ public class CraftListener implements Listener {
         finalItem = ComponentApplier.apply(plugin, finalItem, override == null ? null : override.components());
         finalItem = ComponentApplier.apply(plugin, finalItem, info.components());
 
-        // 换材质理论上与附魔无关，掉了就说明中途经过了有损的中间表示，值得立刻知道
         int enchantments = sourceInput.getEnchantments().size();
         if (finalItem.getEnchantments().size() < enchantments) {
             plugin.getLogger().warning("Lost enchantments while retyping " + sourceInput.getType()

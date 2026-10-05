@@ -1,6 +1,5 @@
 package org.icarus.tingere.gui;
 
-import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -13,16 +12,13 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 第一层编辑界面的渲染。
- * <p>
- * 只负责画信息格与装饰格——九宫格和产物格里放的是玩家自己的真实物品，渲染时一概不碰。
- */
 public final class RecipeEditorView {
 
     public static final int SIZE = 27;
 
-    /** 信息格 / 九宫格 / 产物格 / 取消 / 保存之外剩下的槽位，一律铺灰玻璃板。 */
+    /**
+     * 信息格 / 九宫格 / 产物格 / 取消 / 保存之外剩下的槽位，一律铺灰玻璃板。
+     */
     private static final int[] DECORATION_SLOTS = {
             1, 5, 6, 7, 9, 10, 14, 16, 17, 18, 19, 23, 24, 25
     };
@@ -39,7 +35,6 @@ public final class RecipeEditorView {
         return inventory;
     }
 
-    /** 重画信息格与装饰格。 */
     public static void render(EditorSession session, Inventory inventory) {
         ItemStack filler = filler();
         for (int slot : DECORATION_SLOTS) {
@@ -53,7 +48,7 @@ public final class RecipeEditorView {
     private static ItemStack filler() {
         ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(" "));
+        meta.displayName(Component.text(" ").decoration(TextDecoration.ITALIC, false));
         item.setItemMeta(meta);
         return item;
     }
@@ -110,7 +105,6 @@ public final class RecipeEditorView {
         item.setItemMeta(meta);
         return item;
     }
-
 
     private static Component line(String label, String value) {
         return Component.text(label + "：", NamedTextColor.GRAY)

@@ -31,12 +31,12 @@ public record TransmuteRecipeDefinition(@JsonProperty(required = true) String id
     }
 
     @Override
-    public Recipe toBukkitRecipe(Tingere plugin) {
+    public Recipe toBukkitRecipe(Tingere plugin, ResolvedRecipe resolved) {
         return new TransmuteRecipe(
                 new NamespacedKey(plugin, id),
                 result.material(),
                 new RecipeChoice.MaterialChoice(input.material()),
-                new RecipeChoice.ExactChoice(material.toItemStack(plugin)));
+                new RecipeChoice.ExactChoice(resolved.of(material).item()));
     }
 
     @Override

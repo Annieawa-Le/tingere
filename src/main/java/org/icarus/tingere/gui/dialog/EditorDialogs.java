@@ -27,7 +27,9 @@ import java.util.function.Consumer;
 
 /**
  * 编辑器用到的原版对话框
+ * 这块我没改你自己看看有什么问题
  */
+@SuppressWarnings("UnstableApiUsage")
 public final class EditorDialogs {
 
     private EditorDialogs() {
@@ -112,7 +114,7 @@ public final class EditorDialogs {
         Consumer<DialogResponseView> apply = response -> {
             Float parsed = response.getFloat("amount");
             if (parsed != null && inventory != null) {
-                int size = Math.max(1, Math.min(64, Math.round(parsed)));
+                int size = Math.clamp(Math.round(parsed), 1, 64);
                 ItemStack item = inventory.getItem(EditorSession.RESULT_SLOT);
                 if (item != null && !item.getType().isAir()) {
                     item.setAmount(size);

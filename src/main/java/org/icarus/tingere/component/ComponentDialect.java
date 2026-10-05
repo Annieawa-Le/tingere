@@ -7,23 +7,19 @@ import lombok.experimental.UtilityClass;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 /**
- * 配置方言 → 原版组件结构。
+ * DSL 中其它类型写法到原版映射
  * 为了兼容性说是
  */
 @UtilityClass
 public class ComponentDialect {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    // 这里是键的别名。。
     private static final Map<String, String> EXPLICIT_ALIASES = Map.<String, String>ofEntries(
             Map.entry("display_name", "custom_name"),
             Map.entry("name", "custom_name"),
@@ -47,11 +43,10 @@ public class ComponentDialect {
             Map.entry("stew_effects", "suspicious_stew_effects"),
             Map.entry("recipe_unlock", "recipes"),
             Map.entry("written_book", "written_book_content"),
-            Map.entry("writable_book", "writable_book_content")
-    );
+            Map.entry("writable_book", "writable_book_content"),
+            Map.entry("equippable_on_head", "equippable"));
 
-    private static final Set<String> TEXT_KEYS = Set.of(
-            "custom_name", "item_name", "lore");
+    private static final Set<String> TEXT_KEYS = Set.of("custom_name", "item_name", "lore");
 
     private static final Set<String> EXTERNAL_KEYS = Set.of("entity_data");
 
@@ -96,18 +91,6 @@ public class ComponentDialect {
         return alias == null ? normalized : alias;
     }
 
-    public static String namespaced(String raw, String fallbackNamespace) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String value = raw.trim();
-        if (value.contains(":")) {
-            return value.toLowerCase(Locale.ROOT);
-        }
-        return (fallbackNamespace == null ? "minecraft" : fallbackNamespace) + ':' + value.toLowerCase(Locale.ROOT);
-    }
-
-
     public static JsonNode textNode(JsonNode value) {
         if (value == null || value.isNull()) {
             return JsonNodeFactory.instance.nullNode();
@@ -115,14 +98,12 @@ public class ComponentDialect {
         if (value.isObject() || value.isArray()) {
             return value;
         }
-        return JsonNodeFactory.instance.textNode(text(value.asText()));
+        return JsonNodeFactory.instance.textNode(toMinimessageString(value.asText()));
     }
 
-   // MiniMessage → JSON 
-    private static String text(String raw) {
+    private static String toMinimessageString(String raw) {
         return GsonComponentSerializer.gson().serialize(MINI_MESSAGE.deserialize(raw == null ? "" : raw));
     }
-
 
     public static JsonNode first(JsonNode node, String... fields) {
         if (node == null || !node.isObject()) {
@@ -137,36 +118,4 @@ public class ComponentDialect {
         return null;
     }
 
-    public static String firstText(JsonNode node, String... fields) {
-        JsonNode value = first(node, fields);
-        return value == null ? null : value.asText();
-    }
-
-    public static int intValue(JsonNode node, int fallback, String... fields) {
-        JsonNode value = first(node, fields);
-        return value == null || !value.isNumber() ? fallback : value.asInt(fallback);
-    }
-
-    public static List<JsonNode> array(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return List.of();
-        }
-        if (node.isArray()) {
-            List<JsonNode> result = new ArrayList<>();
-            node.forEach(result::add);
-            return result;
-        }
-        return List.of(node);
-    }
-
-    public static UUID uuid(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(raw.trim());
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
 }

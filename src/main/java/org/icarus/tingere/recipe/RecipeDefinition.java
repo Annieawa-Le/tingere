@@ -23,7 +23,8 @@ public sealed interface RecipeDefinition
     default SpecialDefinition special() {
         return null;
     }
-    Recipe toBukkitRecipe(Tingere plugin);
+
+    Recipe toBukkitRecipe(Tingere plugin, ResolvedRecipe resolved);
     List<Ingredient> flattenedIngredients();
     default JsonNode resultComponents() {
         return result().components();

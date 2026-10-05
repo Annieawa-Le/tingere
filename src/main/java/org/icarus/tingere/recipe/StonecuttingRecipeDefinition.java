@@ -27,11 +27,11 @@ public record StonecuttingRecipeDefinition(@JsonProperty(required = true) String
     }
 
     @Override
-    public Recipe toBukkitRecipe(Tingere plugin) {
+    public Recipe toBukkitRecipe(Tingere plugin, ResolvedRecipe resolved) {
         return new StonecuttingRecipe(
                 new NamespacedKey(plugin, id),
-                result.toItemStack(plugin),
-                ingredient.toRecipeChoice(plugin));
+                resolved.result(),
+                ingredient.toRecipeChoice(resolved.of(ingredient)));
     }
 
     @Override

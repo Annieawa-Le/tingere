@@ -6,9 +6,13 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.RecipeChoice;
 import org.icarus.tingere.Tingere;
 import org.icarus.tingere.nms.RecipeTransaction;
+import org.icarus.tingere.parser.ParseContext;
+import org.icarus.tingere.parser.ParseProblem;
+import org.icarus.tingere.parser.ParseResult;
 import org.icarus.tingere.parser.RecipeParser;
 import org.icarus.tingere.recipe.Ingredient;
 import org.icarus.tingere.recipe.RecipeDefinition;
+import org.icarus.tingere.recipe.ResolvedRecipe;
 import org.icarus.tingere.recipe.ResultOverride;
 import org.icarus.tingere.recipe.ShapedRecipeDefinition;
 import org.icarus.tingere.recipe.SpecialDefinition;
@@ -31,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class RecipeLoader {
@@ -322,42 +327,50 @@ public class RecipeLoader {
         return loaded;
     }
 
-    private boolean tryRegister(RecipeTransaction transaction, JsonNode node, String relative, String label,
-            Set<String> ids) {
+    /**
+     * 如果有错误则会跳过并 log
+     */
+    private boolean tryRegister(RecipeTransaction transaction,
+                                JsonNode node,
+                                String relative,
+                                String label,
+                                Set<String> ids) {
+        ParseContext ctx = new ParseContext(label, relative);
         try {
-            register(transaction, parser.bind(node), ids);
+            RecipeDefinition definition = parser.bind(node);
+            ParseResult<ResolvedRecipe> resolved = ResolvedRecipe.of(plugin, definition, ctx);
+            if (ctx.hasErrors()) {
+                logger.warning("Skipped recipe '" + label + "' in " + relative + ": "
+                        + ctx.errorCount() + " problem(s): " + describe(ctx.problems()));
+                return false;
+            }
+            register(transaction, definition, resolved.value(), ids);
             return true;
+        } catch (ParseProblem e) {
+            logger.warning("Skipped recipe '" + label + "' in " + relative + ": " + e.describe());
+            return false;
         } catch (Exception e) {
             logger.warning("Skipped recipe '" + label + "' in " + relative + ": " + describeException(e));
             return false;
         }
     }
 
-    private void register(RecipeTransaction transaction, RecipeDefinition definition, Set<String> ids) {
+    private static String describe(List<ParseProblem> problems) {
+        return problems.stream().map(ParseProblem::describe).collect(Collectors.joining("; "));
+    }
+
+    private void register(RecipeTransaction transaction, RecipeDefinition definition, ResolvedRecipe resolved,
+                          Set<String> ids) {
         String id = definition.id();
         NamespacedKey namespacedKey = new NamespacedKey(plugin, id);
 
-        transaction.add(definition.toBukkitRecipe(plugin));
+        transaction.add(definition.toBukkitRecipe(plugin, resolved));
         registeredKeys.add(namespacedKey);
         ids.add(id);
 
-        recipeResults.put(id, definition.result().toItemStack(plugin));
-
-        List<Ingredient> flattened = definition.flattenedIngredients();
-        List<ItemStack> ingredients = new ArrayList<>(flattened.size());
-        for (Ingredient value : flattened) {
-            ingredients.add(value.toItemStack(plugin));
-        }
-        recipeIngredients.put(id, ingredients);
-
-        List<Ingredient.Matcher> matchers = new ArrayList<>(flattened.size());
-        for (Ingredient ingredient : flattened) {
-            Ingredient.Matcher matcher = ingredient.matcher(plugin);
-            if (matcher.hasRequirements()) {
-                matchers.add(matcher);
-            }
-        }
-        ingredientMatchers.put(namespacedKey.toString(), matchers);
+        recipeResults.put(id, resolved.result());
+        recipeIngredients.put(id, resolved.ingredientItems());
+        ingredientMatchers.put(namespacedKey.toString(), resolved.matchers());
 
         SpecialDefinition special = definition.special();
         int amount = definition.result().amountOrDefault();
@@ -368,7 +381,7 @@ public class RecipeLoader {
 
         if (special != null) {
             specialRecipes.put(namespacedKey.toString(), special);
-            SpecialSource source = resolveSpecialSource(definition, special, namespacedKey.toString());
+            SpecialSource source = resolveSpecialSource(resolved, definition, special, namespacedKey.toString());
             if (source != null) {
                 specialSources.put(namespacedKey.toString(), source);
             }
@@ -378,7 +391,8 @@ public class RecipeLoader {
         }
     }
 
-    private SpecialSource resolveSpecialSource(RecipeDefinition definition, SpecialDefinition special, String key) {
+    private SpecialSource resolveSpecialSource(ResolvedRecipe resolved, RecipeDefinition definition,
+                                               SpecialDefinition special, String key) {
         if (special.sourceSlot() != null) {
             return new SpecialSource(special.sourceSlot(), null);
         }
@@ -391,7 +405,7 @@ public class RecipeLoader {
             logger.warning("special.source-character '" + symbol + "' is not defined in ingredients of " + key);
             return null;
         }
-        return new SpecialSource(slotOf(shaped.pattern(), symbol), source.toRecipeChoice(plugin));
+        return new SpecialSource(slotOf(shaped.pattern(), symbol), source.toRecipeChoice(resolved.of(source)));
     }
 
     private static int slotOf(List<String> pattern, char symbol) {

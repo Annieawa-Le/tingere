@@ -38,13 +38,13 @@ public record SmithingRecipeDefinition(@JsonProperty(required = true) String id,
     }
 
     @Override
-    public Recipe toBukkitRecipe(Tingere plugin) {
+    public Recipe toBukkitRecipe(Tingere plugin, ResolvedRecipe resolved) {
         return new SmithingTransformRecipe(
                 new NamespacedKey(plugin, id),
-                result.toItemStack(plugin),
-                template.toRecipeChoice(plugin),
-                ingredient.toRecipeChoice(plugin),
-                addition.toRecipeChoice(plugin));
+                resolved.result(),
+                template.toRecipeChoice(resolved.of(template)),
+                ingredient.toRecipeChoice(resolved.of(ingredient)),
+                addition.toRecipeChoice(resolved.of(addition)));
     }
     
     @Override
