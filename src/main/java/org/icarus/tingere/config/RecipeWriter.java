@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 把编辑器里摆好的配方保存到文件。
@@ -30,6 +31,8 @@ public class RecipeWriter {
 
     private static final String RECIPES_FOLDER = "recipes";
     private static final String DEFAULT_NAMESPACE = "default";
+    private static final Pattern ID_PATTERN = Pattern.compile("[a-z0-9._-]+");
+    private static final Pattern PATH_SEGMENT = Pattern.compile("[A-Za-z0-9._-]+");
 
     private final Tingere plugin;
     private final RecipeParser parser = new RecipeParser();
@@ -48,27 +51,41 @@ public class RecipeWriter {
         if (id.isEmpty()) {
             id = uniqueId(editor);
         }
+        validateId(id);
+        validateNamespace(namespace);
+
+        boolean editingSameRecipe = session.isEditingExisting() && id.equals(session.getSourceRecipeId());
+        if (!editingSameRecipe && plugin.getRecipeLoader().getAllRecipeKeys().contains(id)) {
+            throw new IllegalArgumentException("配方 id 已被占用：" + id);
+        }
 
         String file = namespace + ".yml";
         ObjectNode recipe = build(session, editor, id);
+
+        Path target = resolveInside(file);
+        parser.write(target, mergeInto(target, id, recipe));
 
         if (session.isEditingExisting() && session.getSourceFile() != null) {
             boolean moved = !file.equals(session.getSourceFile());
             boolean renamed = session.getSourceRecipeId() != null
                     && !session.getSourceRecipeId().equals(id);
-            if (moved || renamed) {
-                removeFrom(session.getSourceFile(), session.getSourceRecipeId());
+            boolean rekeyed = session.getSourceRecipeKey() != null
+                    && !session.getSourceRecipeKey().equals(id);
+            if (moved || renamed || rekeyed) {
+                removeFrom(session.getSourceFile(), sourceKey(session), session.getSourceRecipeId());
             }
         }
-
-        Path target = folder().resolve(file);
-        parser.write(target, mergeInto(target, id, recipe));
 
         session.setNamespace(namespace);
         session.setRecipeId(id);
         session.setSourceFile(file);
         session.setSourceRecipeId(id);
+        session.setSourceRecipeKey(id);
         return file;
+    }
+
+    private static String sourceKey(EditorSession session) {
+        return session.getSourceRecipeKey() == null ? session.getSourceRecipeId() : session.getSourceRecipeKey();
     }
 
     private String uniqueId(Inventory editor) {
@@ -93,7 +110,7 @@ public class RecipeWriter {
         if (!session.isEditingExisting()) {
             return false;
         }
-        return removeFrom(session.getSourceFile(), session.getSourceRecipeId());
+        return removeFrom(session.getSourceFile(), sourceKey(session), session.getSourceRecipeId());
     }
 
 
@@ -158,7 +175,7 @@ public class RecipeWriter {
                 }
                 // 材质、模式、组件都一样的格子共用一个字符，生成的 pattern 才不会写成 ABC/DEF
                 String signature = item.getType().name() + '|' + session.metaOf(index).getMatchMode()
-                        + '|' + ComponentSnbt.exportAll(item);
+                        + '|' + itemSignature(item);
                 Character symbol = assigned.get(signature);
                 if (symbol == null) {
                     symbol = next++;
@@ -198,14 +215,26 @@ public class RecipeWriter {
         ObjectNode node = mapper.createObjectNode();
         node.put("target-material", target.trim());
 
-        for (Map.Entry<Integer, Character> entry : symbols.entrySet()) {
-            if (session.metaOf(entry.getKey()).isSpecialSource()) {
-                node.put("source-character", String.valueOf(entry.getValue()));
-                break;
+        if (session.getKind() == RecipeKind.SHAPED) {
+            for (Map.Entry<Integer, Character> entry : symbols.entrySet()) {
+                if (session.metaOf(entry.getKey()).isSpecialSource()) {
+                    node.put("source-character", String.valueOf(entry.getValue()));
+                    break;
+                }
+            }
+        } else {
+            for (int i = 0; i < EditorSession.GRID_SLOTS.length; i++) {
+                if (session.metaOf(i).isSpecialSource()) {
+                    node.put("source-slot", i);
+                    break;
+                }
             }
         }
         if (!session.isCopyInput()) {
             node.put("copy-input", false);
+        }
+        if (session.getSpecialComponents() != null) {
+            node.set("components", session.getSpecialComponents());
         }
         return node;
     }
@@ -223,7 +252,6 @@ public class RecipeWriter {
         if (mode.yamlValue() != null) {
             node.put("match-mode", mode.yamlValue());
         }
-        // 仅材质那档重新加载时根本不看组件；精确与包含都得把组件写下来
         if (mode != MatchMode.MATERIAL) {
             JsonNode components = ComponentSnbt.exportJson(item);
             if (!components.isEmpty()) {
@@ -240,7 +268,9 @@ public class RecipeWriter {
 
         JsonNode existing = parser.read(file);
         if (existing.isObject() && existing.has("type")) {
-            String existingId = existing.path("id").asText(null);
+            String existingId = existing.hasNonNull("id")
+                    ? existing.get("id").asText()
+                    : existing.path("key").asText(null);
             if (id.equals(existingId)) {
                 return recipe;
             }
@@ -259,11 +289,11 @@ public class RecipeWriter {
         return recipe;
     }
 
-    private boolean removeFrom(String relative, String id) throws IOException {
+    private boolean removeFrom(String relative, String key, String id) throws IOException {
         if (relative == null || id == null) {
             return false;
         }
-        Path file = folder().resolve(relative);
+        Path file = resolveInside(relative);
         if (!Files.isRegularFile(file)) {
             return false;
         }
@@ -282,7 +312,7 @@ public class RecipeWriter {
         }
 
         ObjectNode container = (ObjectNode) root;
-        if (container.remove(id) == null) {
+        if (container.remove(key == null ? id : key) == null) {
             return false;
         }
         if (container.isEmpty()) {
@@ -297,8 +327,41 @@ public class RecipeWriter {
         return plugin.getDataFolder().toPath().resolve(RECIPES_FOLDER).toAbsolutePath().normalize();
     }
 
+    private Path resolveInside(String relative) throws IOException {
+        Path base = folder();
+        Path resolved = base.resolve(relative).normalize();
+        if (!resolved.startsWith(base)) {
+            throw new IOException("'" + relative + "' 指向 recipes 目录之外");
+        }
+        return resolved;
+    }
+
+    private static void validateId(String id) {
+        if (!ID_PATTERN.matcher(id).matches()) {
+            throw new IllegalArgumentException(
+                    "配方 id 只能包含小写字母、数字、下划线、连字符与点：" + id);
+        }
+    }
+
+    private static void validateNamespace(String namespace) {
+        for (String segment : namespace.split("/", -1)) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)
+                    || !PATH_SEGMENT.matcher(segment).matches()) {
+                throw new IllegalArgumentException("命名空间（文件名）不合法：" + namespace);
+            }
+        }
+    }
+
     private static String trimmed(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String itemSignature(ItemStack item) {
+        try {
+            return ComponentSnbt.exportAll(item);
+        } catch (RuntimeException e) {
+            return item.getType().name() + '#' + item.getAmount();
+        }
     }
 
     private static ItemStack present(ItemStack item) {

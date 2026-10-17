@@ -66,6 +66,7 @@ public final class ParseContext {
     }
 
     private static String key(ParseProblem problem) {
-        return problem.getClass().getSimpleName() + '\u0000' + problem.subject();
+        return problem.getClass().getSimpleName() + '\u0000' + problem.subject()
+                + '\u0000' + problem.getMessage();
     }
 }

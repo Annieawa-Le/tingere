@@ -2,6 +2,7 @@ package org.icarus.tingere.gui;
 
 import lombok.Getter;
 import lombok.Setter;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.bukkit.inventory.Inventory;
 
 import java.util.HashMap;
@@ -35,9 +36,15 @@ public class EditorSession {
     private String specialTargetMaterial = "";
     private boolean copyInput = true;
 
+    /** 编辑已有配方时原样保留的 special.components，避免 GUI 保存把它弄丢。 */
+    private JsonNode specialComponents;
+
     /** 编辑已有配方时的来源文件名（相对 recipes/）与原始 id；新建时都是 null。 */
     private String sourceFile;
     private String sourceRecipeId;
+
+    /** 容器文件里的顶级键；单配方文件为 null。顶级键不要求和 id 相同。 */
+    private String sourceRecipeKey;
 
     private final Map<Integer, IngredientMeta> ingredientMeta = new HashMap<>();
 

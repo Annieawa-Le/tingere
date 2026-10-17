@@ -22,6 +22,7 @@ public record Ingredient(@JsonProperty(required = true) Material material,
                          JsonNode components) {
 
     public static final int DEFAULT_AMOUNT = 1;
+    public static final int MAX_AMOUNT = 64;
     public static final String MODE_MATERIAL = "material";
     public static final String MODE_CONTAIN = "contain";
     public static final String MODE_EXACT = "exact";
@@ -32,6 +33,18 @@ public record Ingredient(@JsonProperty(required = true) Material material,
         }
         if (material.isAir()) {
             throw new IllegalArgumentException("'material' must not be air");
+        }
+        if (amount != null && (amount < 1 || amount > MAX_AMOUNT)) {
+            throw new IllegalArgumentException(
+                    "'amount' must be between 1 and " + MAX_AMOUNT + ", got " + amount);
+        }
+        if (matchMode != null && !matchMode.isBlank()) {
+            String normalized = matchMode.trim().toLowerCase(Locale.ROOT);
+            if (!MODE_MATERIAL.equals(normalized) && !MODE_CONTAIN.equals(normalized)
+                    && !MODE_EXACT.equals(normalized)) {
+                throw new IllegalArgumentException(
+                        "'match-mode' must be one of material, contain, exact, got '" + matchMode + "'");
+            }
         }
     }
 
@@ -72,10 +85,10 @@ public record Ingredient(@JsonProperty(required = true) Material material,
      * 芷沐小姐你知道吗你在你不知情的情况下写出了两次 parse
      */
     public ParseResult<Resolved> resolve(Tingere plugin, ParseContext ctx) {
-        ParseResult<ComponentApplier.Parsed> parsed = ComponentApplier.parse(components, ctx);
+        ParseResult<ComponentApplier.Parsed> parsed = ComponentApplier.parse(plugin, components, ctx);
         ItemStack base = new ItemStack(material, amountOrDefault());
         ItemStack item = ComponentApplier.of(plugin).apply(base, parsed.value(), components);
-        return parsed.map(value -> new Resolved(material, item, predicate(value.patch())));
+        return parsed.map(value -> new Resolved(material, item, predicate(value.patch()), value));
     }
 
     private DataComponentExactPredicate predicate(DataComponentPatch patch) {
@@ -85,7 +98,8 @@ public record Ingredient(@JsonProperty(required = true) Material material,
         return ComponentNbt.exactPredicate(patch);
     }
 
-    public record Resolved(Material material, ItemStack item, DataComponentExactPredicate predicate) {
+    public record Resolved(Material material, ItemStack item, DataComponentExactPredicate predicate,
+                           ComponentApplier.Parsed parsed) {
 
         public Matcher toMatcher() {
             return new Matcher(material, predicate);
@@ -93,13 +107,20 @@ public record Ingredient(@JsonProperty(required = true) Material material,
     }
 
     public ItemStack toItemStack(Tingere plugin) {
-        return resolve(plugin).item();
+        return resolve(plugin, new ParseContext(null, null)).orElseThrow().item();
     }
 
     public RecipeChoice toRecipeChoice(Resolved resolved) {
         return matchesExactly()
                 ? new RecipeChoice.ExactChoice(resolved.item())
                 : new RecipeChoice.MaterialChoice(material);
+    }
+
+    public RecipeChoice toStrictRecipeChoice(Resolved resolved) {
+        if (matchesOnlyMaterial() || components == null || components.isEmpty()) {
+            return new RecipeChoice.MaterialChoice(material);
+        }
+        return new RecipeChoice.ExactChoice(resolved.item());
     }
 
     public record Matcher(Material material, DataComponentExactPredicate required) {

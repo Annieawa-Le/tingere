@@ -80,7 +80,16 @@ public final class ComponentNbt {
             return e.getClass().getSimpleName();
         }
         int colon = message.indexOf(": ");
-        return colon < 0 ? message : message.substring(colon + 2);
+        String detail = colon < 0 ? message : message.substring(colon + 2);
+        int missed = detail.indexOf(" missed input: ");
+        if (missed >= 0) {
+            detail = detail.substring(0, missed);
+        }
+        return java.util.Arrays.stream(detail.split("; "))
+                .map(String::trim)
+                .filter(part -> !part.isEmpty())
+                .distinct()
+                .collect(java.util.stream.Collectors.joining("; "));
     }
 
     private static void copyEntry(DataComponentPatch.Builder builder,

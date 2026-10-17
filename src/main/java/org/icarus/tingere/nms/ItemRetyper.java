@@ -1,5 +1,6 @@
 package org.icarus.tingere.nms;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.craftbukkit.inventory.CraftItemStack;
 import org.bukkit.inventory.ItemStack;
@@ -17,6 +18,9 @@ public final class ItemRetyper {
         net.minecraft.world.item.ItemStack from = CraftItemStack.asNMSCopy(source);
         net.minecraft.world.item.ItemStack to = CraftItemStack.asNMSCopy(new ItemStack(material, source.getAmount()));
         if (from == null || to == null) {
+            Bukkit.getLogger().warning(
+                    "Cannot retype " + source.getType() + " -> " + material
+                            + " without NMS handles; its components will be lost.");
             return source.withType(material);
         }
         to.applyComponents(from.getComponentsPatch());

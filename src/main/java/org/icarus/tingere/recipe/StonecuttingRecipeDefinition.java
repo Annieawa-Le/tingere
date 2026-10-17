@@ -31,7 +31,7 @@ public record StonecuttingRecipeDefinition(@JsonProperty(required = true) String
         return new StonecuttingRecipe(
                 new NamespacedKey(plugin, id),
                 resolved.result(),
-                ingredient.toRecipeChoice(resolved.of(ingredient)));
+                ingredient.toStrictRecipeChoice(resolved.of(ingredient)));
     }
 
     @Override

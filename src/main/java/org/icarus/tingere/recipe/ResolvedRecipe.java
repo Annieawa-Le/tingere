@@ -16,11 +16,11 @@ import java.util.Map;
  */
 public final class ResolvedRecipe {
 
-    private final ItemStack result;
+    private final Ingredient.Resolved result;
     private final List<Ingredient> order;
     private final Map<Ingredient, Ingredient.Resolved> byIngredient;
 
-    private ResolvedRecipe(ItemStack result, List<Ingredient> order,
+    private ResolvedRecipe(Ingredient.Resolved result, List<Ingredient> order,
                            Map<Ingredient, Ingredient.Resolved> byIngredient) {
         this.result = result;
         this.order = order;
@@ -37,10 +37,14 @@ public final class ResolvedRecipe {
             }
         }
         Ingredient.Resolved result = definition.result().resolve(plugin, ctx).value();
-        return ctx.ok(new ResolvedRecipe(result.item(), flattened, resolved));
+        return ctx.ok(new ResolvedRecipe(result, flattened, resolved));
     }
 
     public ItemStack result() {
+        return this.result.item();
+    }
+
+    public Ingredient.Resolved resultResolved() {
         return this.result;
     }
 

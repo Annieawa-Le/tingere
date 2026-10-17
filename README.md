@@ -63,12 +63,12 @@ apple_smelting:
 
 `ingredients` 列表项、`input`、`material`、`ingredient`与`result`使用同一种格式：
 
-| 字段         | 必填 | 默认值 | 说明                                    |
-| ------------ | ---- | ------ | --------------------------------------- |
-| `material`   | 是   | —      | 物品材质                                |
-| `amount`     | 否   | `1`    | 数量                                    |
-| `match-mode` | 否   | exact  | 匹配模式，见「匹配模式」一节            |
-| `components` | 否   | —      | 物品组件，见「物品组件」一节            |
+| 字段         | 必填 | 默认值  | 说明                                    |
+| ------------ | ---- | ------- | --------------------------------------- |
+| `material`   | 是   | —       | 物品材质                                |
+| `amount`     | 否   | `1`     | 数量，取值 1-64                         |
+| `match-mode` | 否   | contain | 匹配模式，见「匹配模式」一节            |
+| `components` | 否   | —       | 物品组件，见「物品组件」一节            |
 
 ```yaml
 material: DIAMOND_SWORD
@@ -82,14 +82,23 @@ components:
 
 ### 匹配模式
 
-原料物品必须与配置完全一致，包括全部组件。
-若只需匹配材质而忽略组件，设置 `match-mode: material`：
+每条原料可以单独设置 `match-mode`：
+
+- `contain`（默认）：材质对上，并且物品带着 `components` 里写的那些组件；物品上多出来的组件不影响匹配。
+- `exact`：材质与组件都必须和配置完全一致。
+- `material`：只认材质，忽略物品上的组件（附魔、名称等一律不管）。
 
 ```yaml
 ingredients:
   A:
     material: DIAMOND_SWORD
     match-mode: material   # 任何钻石剑均可，无论附魔、名称
+  B:
+    material: DIAMOND_SWORD
+    components:
+      enchantments:
+        - minecraft:sharpness:3
+    # 默认 contain：带锋利 III 的钻石剑即可，额外附魔不扣分
 ```
 
 有序与无序配方中，每个原料可以**独立**设置匹配模式。
@@ -200,6 +209,10 @@ experience: 10
 
 与转化配方不同，烹饪配方的结果组件与数量在注册阶段即生效。
 
+烹饪、切石与锻造没有合成事件可以补判组件，因此这些配方里若原料写了 `components`，
+会按 `exact`（与原版 `ExactChoice` 一致）处理，而不是合成台那种 `contain` 的超集匹配。
+`match-mode: material` 仍然表示忽略组件。
+
 ---
 
 ## 物品组件
@@ -211,15 +224,19 @@ experience: 10
 | `display-name`       | MiniMessage 字符串  | 物品自定义名称，优先级最高                                 |
 | `prefix`             | MiniMessage 字符串  | 在原有名称前添加前缀，与 `display-name` 共存时忽略         |
 | `suffix`             | MiniMessage 字符串  | 在原有名称后添加后缀                                       |
-| `lore`               | 字符串列表          | 物品描述文字                                               |
-| `item-model`         | `命名空间:路径`     | 物品模型；不含 `:` 时使用插件命名空间                      |
-| `custom-model-data`  | 整数                | 写入为 `floats[0]`，与原版 1.20.5 迁移行为一致             |
-| `enchantments`       | 字符串列表          | 附魔，格式 `附魔ID:等级`，支持 `minecraft:sharpness:3`     |
+| `lore`               | MiniMessage 字符串列表 | 物品描述文字                                            |
+| `item-model`         | `命名空间:路径`     | 物品模型；不含 `:` 时使用插件命名空间 `tingere`            |
+| `custom-model-data`  | 整数                | 写入为 `floats[0]`；也接受原版 `{floats: [...], flags: [...]}` 形态 |
+| `enchantments`       | 字符串列表          | 附魔，格式 `附魔ID:等级`，支持 `minecraft:sharpness:3`；也接受原版映射 |
+| `stored-enchantments`| 字符串列表          | 同上，写入 `stored_enchantments` 组件                      |
 | `attributes`         | 映射列表            | 属性修饰符，见下方说明                                     |
 | `maxdamage`          | 整数                | 自定义最大耐久值；亦接受 `max-damage`                      |
 | `unbreakable`        | 布尔                | 是否无法破坏                                               |
 | `glint`              | 布尔                | 附魔光效开关，设为 `false` 可让附魔物品不发光              |
-| `equippable-on-head` | 布尔                | 允许该物品戴在头上，默认关闭                               |
+| `equippable-on-head` | 布尔                | 允许该物品戴在头上，默认关闭；也可写原版 `equippable` 对象 |
+
+上面这种简写和原版组件 JSON 可以混用：已经写成原版形态的值（例如
+`enchantments: {minecraft:sharpness: 3}`）会原样交给原版 codec 解析。
 
 `enchantments` 如果写在 transmute 或者 special 里，结果物品的附魔将会和原有物品附魔合并。
 
@@ -231,11 +248,14 @@ attributes:
     amount: 3.0
     operation: ADD_NUMBER   # 省略则 ADD_NUMBER
     slot: mainhand          # 省略则 any
+    # id 可省略，插件会自动生成 tingere:modifier_N
 ```
 
 - `type` 使用 1.21.2 起的属性名，旧名会自动兼容。
-- `operation` 可选 `ADD_NUMBER`、`ADD_SCALAR`、`MULTIPLY_SCALAR_1`。
+- `operation` 可选 `ADD_NUMBER`、`ADD_SCALAR`、`MULTIPLY_SCALAR_1`，也接受 1.21.2 起的新名
+  `ADD_VALUE`、`ADD_MULTIPLIED_BASE`、`ADD_MULTIPLIED_TOTAL`。
 - `slot` 可选 `mainhand`、`offhand`、`hand`、`feet`、`legs`、`chest`、`head`、`armor`、`body`、`any` 等。
+- 每一项都可以单独写 `id`（`命名空间:路径`）；省略时自动生成。
 - `type` 无法识别或 `amount` 非数字时会记录警告并跳过该项，不影响配方的其余部分。
 
 ---
@@ -280,7 +300,11 @@ special:
 - `special` 节点会取代原本的配方结果逻辑，与配方类型无关。
 - `target-material` 缺失或无效时，`special` 段会被忽略并记录警告，该配方退化为普通转化配方。
 - 组件应用顺序为 `result.components` 再 `special.components`，后者覆盖同名键，因此两处可以分工，例如基础描述写在 `result`、强化属性写在 `special`。
-- `source-character` 与 `source-slot` 用于精确指定从哪个槽位取源物品。两者都缺省时，回退为第一个非空槽位。
+- `source-character` 与 `source-slot` 用于精确指定从哪个槽位取源物品。`source-character` 仅限有序配方；
+  两者都缺省时，transmute 会回退到它的 `input`，其他配方则回退到第一个非空槽位。
+- `copy-input: false` 时不复制源物品数据，也就不需要指定源物品。
+- GUI 编辑器只覆盖 `shaped` / `shapeless` 的第一版功能，`special.components` 等未在界面里暴露的字段
+  在编辑保存时会原样保留，但新增字段仍需手改文件。
 
 ---
 

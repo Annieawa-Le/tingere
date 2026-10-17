@@ -160,8 +160,14 @@ public class EditorGuiListener implements Listener {
         try {
             String file = writer.save(session, editor);
             plugin.getRecipeLoader().reloadAll();
-            player.sendRichMessage("<green>已保存到 recipes/" + file);
-            player.sendActionBar(Component.text("已保存 recipes/" + file, NamedTextColor.GREEN));
+            if (plugin.getRecipeLoader().getAllRecipeKeys().contains(session.getRecipeId())) {
+                player.sendRichMessage("<green>已保存到 recipes/" + file);
+                player.sendActionBar(Component.text("已保存 recipes/" + file, NamedTextColor.GREEN));
+            } else {
+                // 文件写进去了但没加载成功（id / 组件 / 材质不合法），不能报"已保存"
+                player.sendRichMessage("<red>已写入 recipes/" + file + "，但加载失败，详情见控制台");
+                player.sendActionBar(Component.text("配方加载失败，详情见控制台", NamedTextColor.RED));
+            }
             RecipeEditorView.render(session, editor);
             player.openInventory(editor);
         } catch (IllegalArgumentException e) {
@@ -190,6 +196,7 @@ public class EditorGuiListener implements Listener {
             }
             session.setSourceRecipeId(null);
             session.setSourceFile(null);
+            session.setSourceRecipeKey(null);
             player.closeInventory();
         } catch (IOException e) {
             player.sendRichMessage("<red>删除失败：" + e.getMessage());

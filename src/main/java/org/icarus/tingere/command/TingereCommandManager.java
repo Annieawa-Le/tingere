@@ -100,11 +100,16 @@ public final class TingereCommandManager {
     private void reloadRecipes(CommandSender sender, String rawFile) {
         if (rawFile == null || rawFile.isBlank()) {
             long start = System.currentTimeMillis();
-            RecipeLoader.FullReloadReport report = plugin.getRecipeLoader().reloadAll();
-            sender.sendRichMessage("<green>配方已重载：当前共 <yellow>" + report.total() + "</yellow> 个"
-                    + "（本次重新加载 " + report.reloaded() + " 个"
-                    + (report.skippedFiles() > 0 ? "，跳过 " + report.skippedFiles() + " 个未改动的文件" : "")
-                    + "），耗时 " + (System.currentTimeMillis() - start) + "ms");
+            try {
+                RecipeLoader.FullReloadReport report = plugin.getRecipeLoader().reloadAll();
+                sender.sendRichMessage("<green>配方已重载：当前共 <yellow>" + report.total() + "</yellow> 个"
+                        + "（本次重新加载 " + report.reloaded() + " 个"
+                        + (report.skippedFiles() > 0 ? "，跳过 " + report.skippedFiles() + " 个未改动的文件" : "")
+                        + "），耗时 " + (System.currentTimeMillis() - start) + "ms");
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "重载配方时出错", e);
+                sender.sendRichMessage("<red>重载失败：" + e.getMessage());
+            }
             return;
         }
 
@@ -126,6 +131,9 @@ public final class TingereCommandManager {
                 sender.sendRichMessage("<gray>当前共 " + candidates.size() + " 个文件，例如：<yellow>" + shown);
             }
         } catch (IOException e) {
+            sender.sendRichMessage("<red>重载 " + file + " 失败: " + e.getMessage());
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "重载配方文件时出错", e);
             sender.sendRichMessage("<red>重载 " + file + " 失败: " + e.getMessage());
         }
     }
@@ -167,7 +175,7 @@ public final class TingereCommandManager {
             String id = target.trim();
             String file = plugin.getRecipeLoader().fileOf(id);
             if (file == null) {
-                player.sendRichMessage("<red>没找到配方 '" + id + "'，可以用 /tingere list 看看有哪些");
+                player.sendRichMessage("<red>没找到配方 '" + id + "'，输入 /tingere gui 时可以用 Tab 补全");
                 return;
             }
             try {

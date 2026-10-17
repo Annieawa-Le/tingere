@@ -82,7 +82,7 @@ public record CookingRecipeDefinition(@JsonProperty(required = true) String id,
     public Recipe toBukkitRecipe(Tingere plugin, ResolvedRecipe resolved) {
         NamespacedKey key = new NamespacedKey(plugin, id);
         ItemStack resultStack = resolved.result();
-        RecipeChoice input = ingredient.toRecipeChoice(resolved.of(ingredient));
+        RecipeChoice input = ingredient.toStrictRecipeChoice(resolved.of(ingredient));
         float exp = (float) experienceOrDefault();
         int ticks = cookingTicks();
 

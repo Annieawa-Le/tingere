@@ -3,7 +3,6 @@ package org.icarus.tingere.recipe;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.Recipe;
-import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.TransmuteRecipe;
 import org.icarus.tingere.Tingere;
 
@@ -35,8 +34,8 @@ public record TransmuteRecipeDefinition(@JsonProperty(required = true) String id
         return new TransmuteRecipe(
                 new NamespacedKey(plugin, id),
                 result.material(),
-                new RecipeChoice.MaterialChoice(input.material()),
-                new RecipeChoice.ExactChoice(resolved.of(material).item()));
+                input.toRecipeChoice(resolved.of(input)),
+                material.toRecipeChoice(resolved.of(material)));
     }
 
     @Override

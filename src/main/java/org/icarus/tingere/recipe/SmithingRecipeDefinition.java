@@ -42,9 +42,9 @@ public record SmithingRecipeDefinition(@JsonProperty(required = true) String id,
         return new SmithingTransformRecipe(
                 new NamespacedKey(plugin, id),
                 resolved.result(),
-                template.toRecipeChoice(resolved.of(template)),
-                ingredient.toRecipeChoice(resolved.of(ingredient)),
-                addition.toRecipeChoice(resolved.of(addition)));
+                template.toStrictRecipeChoice(resolved.of(template)),
+                ingredient.toStrictRecipeChoice(resolved.of(ingredient)),
+                addition.toStrictRecipeChoice(resolved.of(addition)));
     }
     
     @Override

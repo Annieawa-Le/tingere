@@ -29,7 +29,8 @@ import java.util.regex.Pattern;
 
 public final class NbtComponentSupport {
 
-    private static final Pattern NUMBER_WITH_SUFFIX = Pattern.compile("^(-?\\d+)([bslf])$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NUMBER_WITH_SUFFIX =
+            Pattern.compile("^(-?\\d+(?:\\.\\d+)?)([bslfd])$", Pattern.CASE_INSENSITIVE);
 
     private static final String SPAWN_EGG_SUFFIX = "_spawn_egg";
 
@@ -49,6 +50,11 @@ public final class NbtComponentSupport {
         }
 
         JsonNode typeNode = data.get("type");
+        String typeKey = "type";
+        if (typeNode == null || typeNode.isNull()) {
+            typeNode = data.get("id");
+            typeKey = "id";
+        }
         JsonNode payload = data;
         EntityType<?> type;
         if (typeNode != null && !typeNode.isNull()) {
@@ -57,8 +63,8 @@ public final class NbtComponentSupport {
                 throw new ParseProblem.Component("entity_data",
                         "unknown entity type '" + typeNode.asText() + "'");
             }
-            ObjectNode stripped = ((ObjectNode) data).deepCopy();
-            stripped.remove("type");
+            ObjectNode stripped = data.deepCopy();
+            stripped.remove(typeKey);
             payload = stripped;
         } else {
             type = inferEntityType(item);
@@ -150,13 +156,18 @@ public final class NbtComponentSupport {
         if (!matcher.matches()) {
             return StringTag.valueOf(raw);
         }
-        long value = Long.parseLong(matcher.group(1));
+        String number = matcher.group(1);
         return switch (Character.toLowerCase(matcher.group(2).charAt(0))) {
-            case 'b' -> ByteTag.valueOf((byte) value);
-            case 's' -> ShortTag.valueOf((short) value);
-            case 'l' -> LongTag.valueOf(value);
-            default -> FloatTag.valueOf(value);
+            case 'b' -> ByteTag.valueOf((byte) parseLong(number));
+            case 's' -> ShortTag.valueOf((short) parseLong(number));
+            case 'l' -> LongTag.valueOf(parseLong(number));
+            case 'd' -> DoubleTag.valueOf(Double.parseDouble(number));
+            default -> FloatTag.valueOf(Float.parseFloat(number));
         };
+    }
+
+    private static long parseLong(String number) {
+        return number.indexOf('.') < 0 ? Long.parseLong(number) : (long) Double.parseDouble(number);
     }
 }
 

@@ -26,7 +26,24 @@ public final class EditorPrefill {
     public static void fill(Tingere plugin, EditorSession session, String relativeFile, String recipeId)
             throws IOException {
         JsonNode root = PARSER.read(recipePath(plugin, relativeFile));
-        JsonNode node = root.has("type") ? root : root.get(recipeId);
+        JsonNode node = root.has("type") ? root : null;
+        String key = null;
+        if (node == null && root.isObject()) {
+            var fields = root.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next();
+                JsonNode candidate = entry.getValue();
+                if (candidate.isObject() && recipeId.equals(candidate.path("id").asText(null))) {
+                    node = candidate;
+                    key = entry.getKey();
+                    break;
+                }
+            }
+            if (node == null) {
+                node = root.get(recipeId);
+                key = node == null ? null : recipeId;
+            }
+        }
         if (node == null || !node.isObject()) {
             throw new IllegalArgumentException("文件 " + relativeFile + " 里没有配方 '" + recipeId + "'");
         }
@@ -54,9 +71,11 @@ public final class EditorPrefill {
         if (special != null) {
             session.setSpecialTargetMaterial(special.targetMaterial().name());
             session.setCopyInput(special.copyInputOrDefault());
+            session.setSpecialComponents(special.components());
         }
         session.setSourceFile(relativeFile);
         session.setSourceRecipeId(recipeId);
+        session.setSourceRecipeKey(key);
     }
 
     private static void fillShaped(Tingere plugin, EditorSession session, ShapedRecipeDefinition shaped) {
