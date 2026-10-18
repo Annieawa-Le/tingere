@@ -1,12 +1,17 @@
 package org.icarus.tingere.command;
 
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.incendo.cloud.Command;
+import org.incendo.cloud.SenderMapper;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.description.Description;
 import org.incendo.cloud.exception.ArgumentParseException;
@@ -16,7 +21,6 @@ import org.incendo.cloud.exception.NoSuchCommandException;
 import org.incendo.cloud.execution.ExecutionCoordinator;
 import org.incendo.cloud.minecraft.extras.MinecraftHelp;
 import org.incendo.cloud.paper.PaperCommandManager;
-import org.incendo.cloud.paper.util.sender.PaperSimpleSenderMapper;
 import org.incendo.cloud.paper.util.sender.Source;
 import org.incendo.cloud.bukkit.parser.PlayerParser;
 import org.incendo.cloud.parser.standard.IntegerParser;
@@ -66,7 +70,7 @@ public final class TingereCommandManager {
     }
 
     public void register() {
-        this.commandManager = PaperCommandManager.builder(PaperSimpleSenderMapper.simpleSenderMapper())
+        this.commandManager = PaperCommandManager.builder(senderMapper())
                 .executionCoordinator(ExecutionCoordinator.simpleCoordinator())
                 .buildOnEnable(plugin);
         this.help = MinecraftHelp.create("/" + ROOT + " help", commandManager, Source::source);
@@ -76,6 +80,17 @@ public final class TingereCommandManager {
         registerReloadCommand();
         registerGetCommands();
         registerGuiCommand();
+    }
+
+    private static SenderMapper<CommandSourceStack, Source> senderMapper() {
+        return SenderMapper.create(SimpleSource::new, Source::stack);
+    }
+
+    private record SimpleSource(CommandSourceStack stack) implements Source {
+        @Override
+        public @NotNull CommandSender source() {
+            return this.stack.getSender();
+        }
     }
 
     private void registerRootCommand() {
@@ -91,7 +106,7 @@ public final class TingereCommandManager {
 
     private void registerReloadCommand() {
         commandManager.command(root()
-                .literal("reload", Description.of("重载配方文件；可选只重载某一个文件"))
+                .literal("reload", Description.of("重载配方文件（可选只重载某个文件）"))
                 .optional("file", StringParser.greedyStringParser(), recipeFileSuggestions())
                 .permission(adminPermission())
                 .handler(context -> reloadRecipes(sender(context), context.getOrDefault("file", null))));
@@ -102,13 +117,17 @@ public final class TingereCommandManager {
             long start = System.currentTimeMillis();
             try {
                 RecipeLoader.FullReloadReport report = plugin.getRecipeLoader().reloadAll();
-                sender.sendRichMessage("<green>配方已重载：当前共 <yellow>" + report.total() + "</yellow> 个"
-                        + "（本次重新加载 " + report.reloaded() + " 个"
-                        + (report.skippedFiles() > 0 ? "，跳过 " + report.skippedFiles() + " 个未改动的文件" : "")
-                        + "），耗时 " + (System.currentTimeMillis() - start) + "ms");
+                long time = System.currentTimeMillis() - start;
+                reply(sender,
+                        "<green>配方已重载：目前已加载共 <yellow>" + report.total() + "</yellow> 个"
+                                + "（本次重载 " + report.reloaded() + " 个"
+                                + (report.skippedFiles() > 0 ? "，跳过 " + report.skippedFiles() + " 个" : "")
+                                + "），耗时 " + time + "ms",
+                        "配方已重载：共 " + report.total() + " 个，重载 " + report.reloaded() + " 个，耗时 " + time + "ms",
+                        true);
             } catch (RuntimeException e) {
                 plugin.getLogger().log(java.util.logging.Level.WARNING, "重载配方时出错", e);
-                sender.sendRichMessage("<red>重载失败：" + e.getMessage());
+                reply(sender, "<red>重载失败：" + e.getMessage(), "重载失败：" + e.getMessage(), false);
             }
             return;
         }
@@ -117,11 +136,16 @@ public final class TingereCommandManager {
         long start = System.currentTimeMillis();
         try {
             RecipeLoader.ReloadReport report = plugin.getRecipeLoader().reloadFile(file);
-            sender.sendRichMessage("<green>已重载 <yellow>" + report.relative() + "</yellow>"
-                    + "：移除 " + report.removed() + " 个，加载 " + report.loaded() + " 个"
-                    + "，耗时 " + (System.currentTimeMillis() - start) + "ms");
+            long time = System.currentTimeMillis() - start;
+            reply(sender,
+                    "<green>已重载 <yellow>" + report.relative() + "</yellow>"
+                            + "：移除 " + report.removed() + " 个，加载 " + report.loaded() + " 个"
+                            + "，耗时 " + time + "ms",
+                    "已重载 " + report.relative() + "：移除 " + report.removed()
+                            + " 个，加载 " + report.loaded() + " 个，耗时 " + time + "ms",
+                    true);
         } catch (NoSuchFileException e) {
-            sender.sendRichMessage("<red>未找到配方文件: " + file);
+            reply(sender, "<red>未找到配方文件: " + file, "未找到配方文件: " + file, false);
             List<String> candidates = plugin.getRecipeLoader().listRecipeFiles();
             if (!candidates.isEmpty()) {
                 String shown = candidates.stream()
@@ -131,11 +155,27 @@ public final class TingereCommandManager {
                 sender.sendRichMessage("<gray>当前共 " + candidates.size() + " 个文件，例如：<yellow>" + shown);
             }
         } catch (IOException e) {
-            sender.sendRichMessage("<red>重载 " + file + " 失败: " + e.getMessage());
+            reply(sender, "<red>重载 " + file + " 失败: " + e.getMessage(),
+                    "重载 " + file + " 失败: " + e.getMessage(), false);
         } catch (RuntimeException e) {
             plugin.getLogger().log(java.util.logging.Level.WARNING, "重载配方文件时出错", e);
-            sender.sendRichMessage("<red>重载 " + file + " 失败: " + e.getMessage());
+            reply(sender, "<red>重载 " + file + " 失败: " + e.getMessage(),
+                    "重载 " + file + " 失败: " + e.getMessage(), false);
         }
+    }
+
+    private void reply(CommandSender sender, String rich, String plain, boolean success) {
+        Component actionBar = Component.text(plain, success ? NamedTextColor.GREEN : NamedTextColor.RED);
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            sender.sendRichMessage(rich);
+            if (sender instanceof Player player) {
+                player.sendActionBar(actionBar);
+                player.playSound(player.getLocation(),
+                        success ? Sound.BLOCK_NOTE_BLOCK_PLING : Sound.BLOCK_ANVIL_LAND,
+                        0.7F, success ? 1.6F : 0.8F);
+                plugin.getLogger().info("[" + sender.getName() + "] " + plain);
+            }
+        });
     }
 
     private SuggestionProvider<Source> recipeFileSuggestions() {
@@ -154,7 +194,7 @@ public final class TingereCommandManager {
 
     private void registerGuiCommand() {
         commandManager.command(root()
-                .literal("gui", Description.of("打开配方编辑器；给了 id 就编辑那条已有配方"))
+                .literal("gui", Description.of("打开配方编辑器，若指定 id 则编辑对应的已有配方"))
                 .optional("target", StringParser.greedyStringParser(), recipeKeySuggestions())
                 .permission(adminPermission())
                 .handler(context -> {
@@ -175,7 +215,7 @@ public final class TingereCommandManager {
             String id = target.trim();
             String file = plugin.getRecipeLoader().fileOf(id);
             if (file == null) {
-                player.sendRichMessage("<red>没找到配方 '" + id + "'，输入 /tingere gui 时可以用 Tab 补全");
+                player.sendRichMessage("<red>未找到配方 '" + id + "'，输入 /tingere gui 时可以尝试 Tab 补全");
                 return;
             }
             try {
@@ -184,7 +224,6 @@ public final class TingereCommandManager {
                 player.sendRichMessage("<red>读取配方失败：" + e.getMessage());
                 return;
             }
-            // 会话里的值刚被填过，重画一遍信息格
             RecipeEditorView.render(session, inventory);
         }
 
@@ -245,13 +284,13 @@ public final class TingereCommandManager {
         ItemStack item = result.clone();
         item.setAmount(amount);
         give(player, item);
-        player.sendRichMessage("<green>已获取配方 <yellow>" + key + "</yellow> <green>的结果物品 x" + amount);
+        player.sendRichMessage("<green>已获取" + amount + "个配方 <yellow>" + key + "</yellow> <green>的结果物品" );
     }
 
     private void giveIngredient(Player player, String key, int index) {
         List<ItemStack> ingredients = plugin.getRecipeLoader().getIngredients(key);
         if (ingredients == null || ingredients.isEmpty()) {
-            player.sendRichMessage("<red>未找到配方或该配方没有原料: " + key);
+            player.sendRichMessage("<red>未找到配方，或该配方没有原料: " + key);
             return;
         }
         if (index > ingredients.size()) {
@@ -317,6 +356,11 @@ public final class TingereCommandManager {
                 context -> sender(context.context()).sendRichMessage("<red>参数不完整，可用: /" + ROOT + " help"));
         commandManager.exceptionController().registerHandler(ArgumentParseException.class,
                 context -> sender(context.context()).sendRichMessage("<red>参数无效: " + describe(context.exception())));
+        commandManager.exceptionController().registerHandler(Exception.class, context -> {
+            Throwable throwable = context.exception();
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "命令执行失败", throwable);
+            sender(context.context()).sendRichMessage("<red>命令执行失败: " + describe(throwable));
+        });
     }
 
     // 过编译用的

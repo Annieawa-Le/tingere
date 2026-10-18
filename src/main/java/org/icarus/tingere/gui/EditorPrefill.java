@@ -56,8 +56,7 @@ public final class EditorPrefill {
             session.setKind(RecipeKind.SHAPELESS);
             fillShapeless(plugin, session, shapeless);
         } else {
-            throw new IllegalArgumentException("编辑器只支持 shaped 与 shapeless，这条是 "
-                    + definition.getClass().getSimpleName());
+            throw new IllegalArgumentException("编辑器目前只支持有序和无序配方");
         }
 
         Inventory inventory = session.getInventory();

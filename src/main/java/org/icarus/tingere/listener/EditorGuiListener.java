@@ -19,20 +19,25 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class EditorGuiListener implements Listener {
 
     private final Tingere plugin;
     private final RecipeWriter writer;
+    private final Logger logger;
 
     public EditorGuiListener(Tingere plugin) {
         this.plugin = plugin;
         this.writer = new RecipeWriter(plugin);
+        this.logger = plugin.getLogger();
     }
 
-    // ------------------------------------------------------------------ 编辑器界面
-
+    /**
+     * 你不觉得右键才能拿物品是一件很诡异的事情吗
+     */
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         Inventory top = event.getView().getTopInventory();
@@ -43,10 +48,30 @@ public class EditorGuiListener implements Listener {
             return;
         }
 
-        // 点的是玩家自己的背包：只放行普通点击，shift 点击会把东西塞进装饰格
+        if (event.getClickedInventory() == null) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (event.getClickedInventory() != top) {
-            if (event.isShiftClick() || event.getClick() == ClickType.DOUBLE_CLICK) {
+            if (event.getClick() == ClickType.DOUBLE_CLICK) {
                 event.setCancelled(true);
+                return;
+            }
+            if (event.isShiftClick()) {
+                event.setCancelled(true);
+                ItemStack moving = event.getCurrentItem();
+                if (!isEmpty(moving)) {
+                    int original = moving.getAmount();
+                    int remaining = insertIntoGrid(top, moving);
+                    if (remaining <= 0) {
+                        event.getClickedInventory().setItem(event.getSlot(), null);
+                    } else if (remaining < original) {
+                        ItemStack left = moving.clone();
+                        left.setAmount(remaining);
+                        event.getClickedInventory().setItem(event.getSlot(), left);
+                    }
+                }
             }
             return;
         }
@@ -80,27 +105,18 @@ public class EditorGuiListener implements Listener {
             return;
         }
 
-        int gridIndex = EditorSession.gridIndex(slot);
-        if (gridIndex >= 0) {
+        if (isEditable(slot)) {
             ItemStack current = top.getItem(slot);
-            if (current == null || current.getType().isAir()) {
-                return;
+            boolean hasItem = current != null && !current.getType().isAir();
+            boolean emptyHand = isEmpty(event.getCursor());
+            if (hasItem && emptyHand && event.getClick() == ClickType.RIGHT) {
+                event.setCancelled(true);
+                if (slot == EditorSession.RESULT_SLOT) {
+                    EditorDialogs.openResult(player, session);
+                } else {
+                    EditorDialogs.openIngredient(player, session, EditorSession.gridIndex(slot));
+                }
             }
-            if (event.getClick() == ClickType.RIGHT) {
-                return;
-            }
-            event.setCancelled(true);
-            EditorDialogs.openIngredient(player, session, gridIndex);
-            return;
-        }
-
-        if (slot == EditorSession.RESULT_SLOT) {
-            ItemStack current = top.getItem(slot);
-            if (current == null || current.getType().isAir()) {
-                return;
-            }
-            event.setCancelled(true);
-            EditorDialogs.openResult(player, session);
             return;
         }
 
@@ -138,7 +154,6 @@ public class EditorGuiListener implements Listener {
             if (!player.isOnline()) {
                 return;
             }
-            // 弹对话框不会真的关掉这个箱子，所以服务端眼里它还开着；玩家回到原位就什么都不做
             if (player.getOpenInventory().getTopInventory() == top) {
                 return;
             }
@@ -150,7 +165,52 @@ public class EditorGuiListener implements Listener {
         }, 1L);
     }
 
-    // ------------------------------------------------------------------ 工具
+    private static int insertIntoGrid(Inventory top, ItemStack moving) {
+        int remaining = moving.getAmount();
+        for (int slot : EditorSession.GRID_SLOTS) {
+            ItemStack existing = top.getItem(slot);
+            if (isEmpty(existing) || !existing.isSimilar(moving)) {
+                continue;
+            }
+            int space = existing.getMaxStackSize() - existing.getAmount();
+            if (space <= 0) {
+                continue;
+            }
+            int moved = Math.min(space, remaining);
+            existing.setAmount(existing.getAmount() + moved);
+            top.setItem(slot, existing);
+            remaining -= moved;
+            if (remaining == 0) {
+                return 0;
+            }
+        }
+        for (int slot : EditorSession.GRID_SLOTS) {
+            if (isEmpty(top.getItem(slot))) {
+                ItemStack placed = moving.clone();
+                placed.setAmount(remaining);
+                top.setItem(slot, placed);
+                return 0;
+            }
+        }
+        return remaining;
+    }
+
+    private void reloadAfterSave(String file, String previousFile) {
+        if (previousFile != null && !previousFile.equals(file)) {
+            reloadOrUnload(previousFile);
+        }
+        reloadOrUnload(file);
+    }
+
+    private void reloadOrUnload(String relative) {
+        try {
+            plugin.getRecipeLoader().reloadFile(relative);
+        } catch (NoSuchFileException e) {
+            plugin.getRecipeLoader().unloadFile(relative);
+        } catch (IOException e) {
+            logger.log(Level.WARNING, "重载配方文件 " + relative + " 失败", e);
+        }
+    }
 
     private void save(Player player, EditorSession session) {
         Inventory editor = session.getInventory();
@@ -158,14 +218,14 @@ public class EditorGuiListener implements Listener {
             return;
         }
         try {
+            String previousFile = session.getSourceFile();
             String file = writer.save(session, editor);
-            plugin.getRecipeLoader().reloadAll();
+            reloadAfterSave(file, previousFile);
             if (plugin.getRecipeLoader().getAllRecipeKeys().contains(session.getRecipeId())) {
                 player.sendRichMessage("<green>已保存到 recipes/" + file);
                 player.sendActionBar(Component.text("已保存 recipes/" + file, NamedTextColor.GREEN));
             } else {
-                // 文件写进去了但没加载成功（id / 组件 / 材质不合法），不能报"已保存"
-                player.sendRichMessage("<red>已写入 recipes/" + file + "，但加载失败，详情见控制台");
+                player.sendRichMessage("<red>已写入 recipes/" + file + "，但加载失败，详见控制台");
                 player.sendActionBar(Component.text("配方加载失败，详情见控制台", NamedTextColor.RED));
             }
             RecipeEditorView.render(session, editor);
@@ -178,8 +238,12 @@ public class EditorGuiListener implements Listener {
             player.sendRichMessage("<red>" + message);
             player.sendActionBar(Component.text(message, NamedTextColor.RED));
         } catch (RuntimeException e) {
-            plugin.getLogger().log(Level.WARNING, "保存配方时出错", e);
+            logger.log(Level.WARNING, "保存配方时出错", e);
             player.sendActionBar(Component.text("保存失败，详情见控制台", NamedTextColor.RED));
+        } catch (LinkageError e) {
+            logger.log(Level.SEVERE, "保存配方时类加载失败", e);
+            player.sendRichMessage("<red>保存失败：组件序列化类加载异常，详情见控制台");
+            player.sendActionBar(Component.text("保存失败：类加载异常", NamedTextColor.RED));
         }
     }
 
@@ -188,9 +252,12 @@ public class EditorGuiListener implements Listener {
             return;
         }
         String id = session.getSourceRecipeId();
+        String sourceFile = session.getSourceFile();
         try {
             boolean removed = writer.delete(session);
-            plugin.getRecipeLoader().reloadAll();
+            if (sourceFile != null) {
+                reloadOrUnload(sourceFile);
+            }
             if (removed) {
                 player.sendRichMessage("<green>已删除配方 '" + id + "'");
             }
@@ -201,7 +268,7 @@ public class EditorGuiListener implements Listener {
         } catch (IOException e) {
             player.sendRichMessage("<red>删除失败：" + e.getMessage());
         } catch (RuntimeException e) {
-            plugin.getLogger().log(Level.WARNING, "删除配方时出错", e);
+            logger.log(Level.WARNING, "删除配方时出错", e);
             player.sendRichMessage("<red>删除失败，详情见控制台");
         }
     }
@@ -210,9 +277,13 @@ public class EditorGuiListener implements Listener {
         return slot == EditorSession.RESULT_SLOT || EditorSession.gridIndex(slot) >= 0;
     }
 
+    private static boolean isEmpty(ItemStack item) {
+        return item == null || item.getType().isAir();
+    }
+
     private static void returnItem(Player player, Inventory inventory, int slot) {
         ItemStack item = inventory.getItem(slot);
-        if (item == null || item.getType().isAir()) {
+        if (isEmpty(item)) {
             return;
         }
         inventory.setItem(slot, null);
@@ -220,5 +291,3 @@ public class EditorGuiListener implements Listener {
                 .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
     }
 }
-
-

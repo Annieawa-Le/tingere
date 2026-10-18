@@ -16,9 +16,6 @@ public final class RecipeEditorView {
 
     public static final int SIZE = 27;
 
-    /**
-     * 信息格 / 九宫格 / 产物格 / 取消 / 保存之外剩下的槽位，一律铺灰玻璃板。
-     */
     private static final int[] DECORATION_SLOTS = {
             1, 5, 6, 7, 9, 10, 14, 16, 17, 18, 19, 23, 24, 25
     };
@@ -60,18 +57,14 @@ public final class RecipeEditorView {
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
-        lore.add(line("id", session.getRecipeId().isBlank() ? "（留空自动生成）" : session.getRecipeId()));
-        lore.add(line("类型", session.getKind().display() + " (" + session.getKind().id() + ")"));
-        lore.add(line("命名空间", session.getNamespace().isBlank() ? "（留空用 default）" : session.getNamespace()));
-        lore.add(line("特殊配方", session.isSpecial() ? "是" : "否"));
-        if (session.getSpecialTargetMaterial() != null && !session.getSpecialTargetMaterial().isBlank()) {
-            lore.add(line("特殊产物材质", session.getSpecialTargetMaterial()));
+        lore.add(line("id", session.getRecipeId().isBlank() ? "（自动生成）" : session.getRecipeId()));
+        lore.add(line("类型", session.getKind().display() + " · " + session.getKind().id()));
+        lore.add(line("文件", targetFile(session)));
+        if (session.isSpecial()) {
+            String target = session.getSpecialTargetMaterial();
+            lore.add(line("special", target == null || target.isBlank() ? "已开启" : target));
         }
-        if (session.isEditingExisting()) {
-            lore.add(line("来源", session.getSourceFile()));
-        }
-        lore.add(Component.empty());
-        lore.add(hint("点击编辑"));
+        lore.add(hint("右键已放置材料修改匹配模式等信息"));
         meta.lore(lore);
 
         item.setItemMeta(meta);
@@ -85,9 +78,9 @@ public final class RecipeEditorView {
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
-        lore.add(hint("关闭编辑器，格子里的物品会还给你"));
+        lore.add(hint("左键：关闭并退回所有物品"));
         if (session.isEditingExisting()) {
-            lore.add(hint("对着这里按 Q 删除这条配方"));
+            lore.add(hint("Q：删除此配方"));
         }
         meta.lore(lore);
 
@@ -100,10 +93,18 @@ public final class RecipeEditorView {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("保存", NamedTextColor.GREEN)
                 .decoration(TextDecoration.ITALIC, false));
-        meta.lore(List.of(hint("写入 recipes/" + (session.getNamespace().isBlank()
-                ? "default" : session.getNamespace()) + ".yml")));
+        meta.lore(List.of(hint("左键：写入 " + targetFile(session))));
         item.setItemMeta(meta);
         return item;
+    }
+
+    private static String targetFile(EditorSession session) {
+        if (session.isEditingExisting() && session.getSourceFile() != null) {
+            return session.getSourceFile();
+        }
+        String namespace = session.getNamespace() == null || session.getNamespace().isBlank()
+                ? "default" : session.getNamespace().trim();
+        return namespace + ".yml";
     }
 
     private static Component line(String label, String value) {

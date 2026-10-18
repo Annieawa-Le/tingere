@@ -18,9 +18,16 @@ import org.icarus.tingere.recipe.TransmuteRecipeDefinition;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public final class RecipeParser {
 
@@ -44,10 +51,66 @@ public final class RecipeParser {
     }
 
     public void write(Path file, JsonNode root) throws IOException {
-        Files.createDirectories(file.getParent());
-        try (OutputStream output = Files.newOutputStream(file)) {
-            mapper.writeValue(output, root);
+        Path parent = file.getParent();
+        Files.createDirectories(parent);
+        Path temp = Files.createTempFile(parent, ".tingere-recipe-", ".tmp");
+        try {
+            try {
+                try (OutputStream output = Files.newOutputStream(temp)) {
+                    mapper.writeValue(output, root);
+                }
+            } catch (LinkageError error) {
+                // 部分老牧师产物的 lib 是不完全的，需要 fallback
+                writeWithServerYaml(temp, root);
+            }
+            try {
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
         }
+    }
+
+    private static void writeWithServerYaml(Path file, JsonNode root) throws IOException {
+        try {
+            Class<?> yamlType = Class.forName("org.yaml.snakeyaml.Yaml");
+            Object yaml = yamlType.getConstructor().newInstance();
+            Object text = yamlType.getMethod("dump", Object.class).invoke(yaml, toJava(root));
+            Files.writeString(file, String.valueOf(text), StandardCharsets.UTF_8);
+        } catch (ReflectiveOperationException e) {
+            throw new IOException("Failed to write recipe file with the server YAML implementation", e);
+        }
+    }
+
+    private static Object toJava(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (node.isObject()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            node.fields().forEachRemaining(entry -> map.put(entry.getKey(), toJava(entry.getValue())));
+            return map;
+        }
+        if (node.isArray()) {
+            List<Object> list = new ArrayList<>();
+            node.forEach(entry -> list.add(toJava(entry)));
+            return list;
+        }
+        if (node.isTextual()) {
+            return node.asText();
+        }
+        if (node.isBoolean()) {
+            return node.asBoolean();
+        }
+        if (node.isIntegralNumber()) {
+            return node.canConvertToInt() ? (Object) node.asInt() : (Object) node.asLong();
+        }
+        if (node.isFloatingPointNumber()) {
+            return node.asDouble();
+        }
+        return node.asText();
     }
 
     public RecipeDefinition bind(JsonNode node) throws IOException {

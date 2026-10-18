@@ -66,7 +66,7 @@ apple_smelting:
 | 字段         | 必填 | 默认值  | 说明                                    |
 | ------------ | ---- | ------- | --------------------------------------- |
 | `material`   | 是   | —       | 物品材质                                |
-| `amount`     | 否   | `1`     | 数量，取值 1-64                         |
+| `amount`     | 否   | `1`     | 数量；默认上限 64，写了 `max_stack_size` 组件时按组件上限（最高 99） |
 | `match-mode` | 否   | contain | 匹配模式，见「匹配模式」一节            |
 | `components` | 否   | —       | 物品组件，见「物品组件」一节            |
 
@@ -237,6 +237,13 @@ experience: 10
 
 上面这种简写和原版组件 JSON 可以混用：已经写成原版形态的值（例如
 `enchantments: {minecraft:sharpness: 3}`）会原样交给原版 codec 解析。
+
+生物变体这类注册表 key 带 `/` 的组件（`minecraft:wolf/variant`、`minecraft:cat/variant`、
+`minecraft:painting/variant` 等）也可以按字段名写法使用下划线别名：`wolf_variant`、
+`cat_variant`、`painting_variant`、`tropical_fish_base_color`…… 插件会自动补成原版 key；
+`sheep_color`、`wolf_collar` 这类同理。注意 `mooshroom_variant`、`parrot_variant`、
+`axolotl_variant`、`rabbit_variant`、`horse_variant`、`llama_variant`、`fox_variant` 在
+1.21.11 走枚举 codec，值要写 `red` 这样的裸名，而不是 `minecraft:red`。
 
 `enchantments` 如果写在 transmute 或者 special 里，结果物品的附魔将会和原有物品附魔合并。
 

@@ -102,7 +102,7 @@ public class CraftListener implements Listener {
 
         ItemStack finalItem;
         if (copyInput) {
-            finalItem = ItemRetyper.retype(sourceInput, info.targetMaterial());
+            finalItem = ItemRetyper.retype(logger::warning, sourceInput, info.targetMaterial());
         } else {
             finalItem = new ItemStack(info.targetMaterial());
         }

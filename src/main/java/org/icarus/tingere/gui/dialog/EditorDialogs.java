@@ -13,12 +13,14 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.event.ClickCallback;
 import org.bukkit.entity.Player;
+import org.bukkit.craftbukkit.inventory.CraftItemStack;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.icarus.tingere.gui.EditorSession;
 import org.icarus.tingere.gui.MatchMode;
 import org.icarus.tingere.gui.RecipeEditorView;
 import org.icarus.tingere.gui.RecipeKind;
+import org.icarus.tingere.recipe.Ingredient;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -26,8 +28,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 编辑器用到的原版对话框
- * 这块我没改你自己看看有什么问题
+ * 你的信息交互写的很地狱
  */
 @SuppressWarnings("UnstableApiUsage")
 public final class EditorDialogs {
@@ -43,21 +44,21 @@ public final class EditorDialogs {
                         .build(),
                 DialogInput.singleOption("kind", Component.text("配方类型"), List.of(
                                 SingleOptionDialogInput.OptionEntry.create(
-                                        RecipeKind.SHAPED.id(), Component.text("有序 shaped"),
+                                        RecipeKind.SHAPED.id(), Component.text("有序"),
                                         session.getKind() == RecipeKind.SHAPED),
                                 SingleOptionDialogInput.OptionEntry.create(
-                                        RecipeKind.SHAPELESS.id(), Component.text("无序 shapeless"),
+                                        RecipeKind.SHAPELESS.id(), Component.text("无序"),
                                         session.getKind() == RecipeKind.SHAPELESS)))
                         .build(),
-                DialogInput.text("namespace", Component.text("命名空间（决定写进哪个文件）"))
+                DialogInput.text("namespace", Component.text("命名空间"))
                         .initial(session.getNamespace())
                         .maxLength(64)
                         .build(),
-                DialogInput.bool("special", Component.text("特殊配方（special）"))
+                DialogInput.bool("special", Component.text("特殊配方"))
                         .initial(session.isSpecial())
                         .build());
 
-        show(player, session, "配方信息", inputs, response -> {
+        show(player, session, "配方信息", "点击确定以保存", inputs, response -> {
             session.setRecipeId(orEmpty(response.getText("recipe_id")).trim());
             session.setNamespace(orEmpty(response.getText("namespace")).trim());
             session.setKind(RecipeKind.SHAPELESS.id().equals(response.getText("kind"))
@@ -72,16 +73,16 @@ public final class EditorDialogs {
         List<DialogInput> inputs = List.of(
                 DialogInput.singleOption("match_mode", Component.text("匹配模式"), List.of(
                                 SingleOptionDialogInput.OptionEntry.create(
-                                        "contain", Component.text("包含：材质对上、带着写的组件，多出来的不管"),
+                                        "contain", Component.text("包含"),
                                         meta.getMatchMode() == MatchMode.CONTAIN),
                                 SingleOptionDialogInput.OptionEntry.create(
-                                        "exact", Component.text("精确：材质与组件都要对上"),
+                                        "exact", Component.text("完全一致"),
                                         meta.getMatchMode() == MatchMode.EXACT),
                                 SingleOptionDialogInput.OptionEntry.create(
-                                        "material", Component.text("仅材质：带附魔或命名的也认"),
+                                        "material", Component.text("仅材质"),
                                         meta.getMatchMode() == MatchMode.MATERIAL)))
                         .build(),
-                DialogInput.bool("special_source", Component.text("作为特殊配方的源材料（special.source-character）"))
+                DialogInput.bool("special_source", Component.text("设为特殊配方源物品"))
                         .initial(meta.isSpecialSource())
                         .build());
 
@@ -90,31 +91,34 @@ public final class EditorDialogs {
             meta.setSpecialSource(Boolean.TRUE.equals(response.getBoolean("special_source")));
         };
 
-        show(player, session, "材料设置（第 " + (gridIndex + 1) + " 格）", inputs, apply);
+        show(player, session, "材料 - 第 " + (gridIndex + 1) + " 格",
+                "包含：材质与组件 | 精确：组件完全一致 | 仅材质：忽略其它组件",
+                inputs, apply);
     }
 
     public static void openResult(Player player, EditorSession session) {
         Inventory inventory = session.getInventory();
         ItemStack current = inventory == null ? null : inventory.getItem(EditorSession.RESULT_SLOT);
+        int maxAmount = maxStackSize(current);
         float amount = current == null || current.getType().isAir() ? 1F : current.getAmount();
 
         List<DialogInput> inputs = List.of(
-                DialogInput.numberRange("amount", Component.text("产物数量"), 1F, 64F)
+                DialogInput.numberRange("amount", Component.text("产物数量"), 1F, maxAmount)
                         .step(1F)
                         .initial(amount)
                         .build(),
-                DialogInput.text("special_target", Component.text("特殊配方产物材质（special.target-material）"))
+                DialogInput.text("special_target", Component.text("特殊配方产物材质"))
                         .initial(session.getSpecialTargetMaterial())
                         .maxLength(64)
                         .build(),
-                DialogInput.bool("copy_input", Component.text("复制被改造物品的数据（special.copy-input）"))
+                DialogInput.bool("copy_input", Component.text("复制源物品组件"))
                         .initial(session.isCopyInput())
                         .build());
 
         Consumer<DialogResponseView> apply = response -> {
             Float parsed = response.getFloat("amount");
             if (parsed != null && inventory != null) {
-                int size = Math.clamp(Math.round(parsed), 1, 64);
+                int size = Math.clamp(Math.round(parsed), 1, maxAmount);
                 ItemStack item = inventory.getItem(EditorSession.RESULT_SLOT);
                 if (item != null && !item.getType().isAir()) {
                     item.setAmount(size);
@@ -125,10 +129,29 @@ public final class EditorDialogs {
             session.setCopyInput(!Boolean.FALSE.equals(response.getBoolean("copy_input")));
         };
 
-        show(player, session, "产物设置", inputs, apply);
+        show(player, session, "产物设置",
+                "数量上限跟随 max_stack_size 组件",
+                inputs, apply);
     }
 
-    private static void show(Player player, EditorSession session, String title,
+    private static int maxStackSize(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return Ingredient.MAX_AMOUNT;
+        }
+        try {
+            var handle = CraftItemStack.asNMSCopy(item);
+            if (handle != null) {
+                Integer configured = handle.get(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE);
+                if (configured != null) {
+                    return Math.clamp(configured, 1, Ingredient.MAX_COMPONENT_AMOUNT);
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return Ingredient.MAX_AMOUNT;
+    }
+
+    private static void show(Player player, EditorSession session, String title, String bodyText,
                              List<DialogInput> inputs, Consumer<DialogResponseView> onConfirm) {
         List<ActionButton> buttons = new ArrayList<>();
         buttons.add(ActionButton.builder(Component.text("确定"))
@@ -139,8 +162,7 @@ public final class EditorDialogs {
                 .build());
 
         List<DialogBody> body = List.of(
-                DialogBody.plainMessage(Component.text("填写完点确定；点返回则放弃这次修改")
-                        .color(NamedTextColor.GRAY)));
+                DialogBody.plainMessage(Component.text(bodyText).color(NamedTextColor.GRAY)));
 
         Dialog dialog = Dialog.create(factory -> factory.empty()
                 .base(DialogBase.builder(Component.text(title))
@@ -175,7 +197,7 @@ public final class EditorDialogs {
                 .base(DialogBase.builder(Component.text("删除配方"))
                         .canCloseWithEscape(false)
                         .body(List.of(DialogBody.plainMessage(
-                                Component.text("要从 " + file + " 里删掉 '" + id + "' 吗？这个动作不可撤销。")
+                                Component.text("删除 " + file + " 里的 '" + id + "'？此操作不可撤销！")
                                         .color(NamedTextColor.RED))))
                         .build())
                 .type(DialogType.confirmation(
@@ -204,4 +226,3 @@ public final class EditorDialogs {
         return value == null ? "" : value;
     }
 }
-

@@ -233,6 +233,17 @@ public class RecipeLoader {
         }
     }
 
+    public void unloadFile(String rawRelative) {
+        String relative = unquote(rawRelative).replace('\\', '/');
+        try (RecipeTransaction transaction = RecipeTransaction.begin(plugin)) {
+            int removed = unregisterFile(transaction, relative);
+            fileFingerprints.remove(relative);
+            if (removed > 0) {
+                logger.info("Unloaded " + removed + " recipe(s) from removed file " + relative + ".");
+            }
+        }
+    }
+
     public static String unquote(String raw) {
         if (raw == null) {
             return "";

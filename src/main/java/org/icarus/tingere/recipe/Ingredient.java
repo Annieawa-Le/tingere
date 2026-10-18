@@ -22,7 +22,14 @@ public record Ingredient(@JsonProperty(required = true) Material material,
                          JsonNode components) {
 
     public static final int DEFAULT_AMOUNT = 1;
-    public static final int MAX_AMOUNT = 64;
+    public static final int MAX_AMOUNT = net.minecraft.world.item.Item.DEFAULT_MAX_STACK_SIZE;
+    public static final int MAX_COMPONENT_AMOUNT = net.minecraft.world.item.Item.ABSOLUTE_MAX_STACK_SIZE;
+
+    private static final String[] MAX_STACK_FIELDS = {
+            "max_stack_size", "max-stack-size", "max_stack", "max-stack",
+            "stack_size", "stack-size", "minecraft:max_stack_size", "minecraft:max-stack-size"
+    };
+
     public static final String MODE_MATERIAL = "material";
     public static final String MODE_CONTAIN = "contain";
     public static final String MODE_EXACT = "exact";
@@ -34,9 +41,10 @@ public record Ingredient(@JsonProperty(required = true) Material material,
         if (material.isAir()) {
             throw new IllegalArgumentException("'material' must not be air");
         }
-        if (amount != null && (amount < 1 || amount > MAX_AMOUNT)) {
+        int amountLimit = maxAmount(components);
+        if (amount != null && (amount < 1 || amount > amountLimit)) {
             throw new IllegalArgumentException(
-                    "'amount' must be between 1 and " + MAX_AMOUNT + ", got " + amount);
+                    "'amount' must be between 1 and " + amountLimit + ", got " + amount);
         }
         if (matchMode != null && !matchMode.isBlank()) {
             String normalized = matchMode.trim().toLowerCase(Locale.ROOT);
@@ -46,6 +54,24 @@ public record Ingredient(@JsonProperty(required = true) Material material,
                         "'match-mode' must be one of material, contain, exact, got '" + matchMode + "'");
             }
         }
+    }
+
+    public static int maxAmount(JsonNode components) {
+        if (components != null && components.isObject()) {
+            for (String field : MAX_STACK_FIELDS) {
+                JsonNode value = components.get(field);
+                if (value == null || value.isNull()) {
+                    continue;
+                }
+                if (value.isNumber() || value.isTextual()) {
+                    int limit = value.asInt();
+                    if (limit >= 1) {
+                        return Math.min(limit, MAX_COMPONENT_AMOUNT);
+                    }
+                }
+            }
+        }
+        return MAX_AMOUNT;
     }
 
     public int amountOrDefault() {
@@ -75,10 +101,6 @@ public record Ingredient(@JsonProperty(required = true) Material material,
             throw new IllegalArgumentException(
                     "'" + field + ".amount' must be 1 for " + recipeType + " recipes, got " + amount);
         }
-    }
-
-    public Resolved resolve(Tingere plugin) {
-        return resolve(plugin, new ParseContext(null, null)).unwrap();
     }
 
     /**
